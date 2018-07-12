@@ -177,9 +177,7 @@ StreamChopper.prototype._destroy = function (err, cb) {
 }
 
 StreamChopper.prototype._final = function (cb) {
-  if (this._stream === null ||
-      this._stream === process.stdout ||
-      this._stream === process.stderr) return cb()
+  if (this._stream === null) return cb()
   this._stream.end(cb)
 }
 
