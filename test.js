@@ -15,8 +15,6 @@ test('default values', function (t) {
   t.equal(chopper._time, -1)
   t.equal(chopper._type, StreamChopper.split)
   t.equal(chopper._locked, false)
-  t.equal(chopper._starting, false)
-  t.equal(chopper._ending, false)
   t.equal(chopper._draining, false)
   t.equal(chopper._destroyed, false)
   t.end()

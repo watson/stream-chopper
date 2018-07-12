@@ -34,8 +34,6 @@ function StreamChopper (opts) {
   this._stream = null
 
   this._locked = false
-  this._starting = false
-  this._ending = false
   this._draining = false
   this._destroyed = false
 
@@ -75,7 +73,6 @@ StreamChopper.prototype._startStream = function (cb) {
     .on('drain', this._ondrain)
 
   this._locked = true
-  this._starting = true
   this.emit('stream', this._stream, err => {
     this._locked = false
     if (err) return this.destroy(err)
@@ -86,7 +83,6 @@ StreamChopper.prototype._startStream = function (cb) {
       cb()
     }
   })
-  this._starting = false
 
   if (this._time !== -1) {
     this._timer = setTimeout(() => {
@@ -106,22 +102,16 @@ StreamChopper.prototype._endStream = function (cb) {
   if (this._destroyed) return
   if (this._stream === null) return process.nextTick(cb)
 
-  this._ending = true
-
   const stream = this._stream
-  const done = () => {
-    this._ending = false
-    if (cb) cb()
-  }
 
   // ensure all timers and event listeners related to the current stream is removed
   this._removeStream()
 
   // if stream hasn't yet ended, make sure to end it properly
   if (!stream._writableState.ending && !stream._writableState.finished) {
-    stream.end(done)
+    stream.end(cb)
   } else {
-    process.nextTick(done)
+    process.nextTick(cb)
   }
 }
 
