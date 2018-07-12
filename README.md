@@ -74,8 +74,8 @@ config options:
   - `StreamChopper.underflow` - End the current output stream and write
     the entire chunk to the next stream
 
-If `type` is `StreamChopper.underflow` and the size of the written chunk
-is larger than `size` and error is emitted.
+If `type` is `StreamChopper.underflow` and the size of the chunk to be
+written is larger than `size` an error is emitted.
 
 ### Event: `stream`
 
