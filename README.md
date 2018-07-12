@@ -4,6 +4,7 @@ Chop a single stream of data into a series of readable streams.
 
 [![npm](https://img.shields.io/npm/v/stream-chopper.svg)](https://www.npmjs.com/package/stream-chopper)
 [![build status](https://travis-ci.org/watson/stream-chopper.svg?branch=master)](https://travis-ci.org/watson/stream-chopper)
+[![codecov](https://img.shields.io/codecov/c/github/watson/stream-chopper.svg)](https://codecov.io/gh/watson/stream-chopper)
 [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat)](https://github.com/feross/standard)
 
 ## Installation
