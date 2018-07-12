@@ -66,17 +66,11 @@ config options:
   `-1` which means no limit)
 - `softlimit` - If `true`, the last write to the `chopper` stream that
   makes it go over the `maxSize` will be allowed to be written to the
-  current output stream (default: `false`)
-- `splitWrites` - If `true`, the data written to the `chopper` stream
-  will be split over the current and next output stream when `maxSize`
-  is reached (default: `true`).
+  current output stream. If `false`, the chunk will be split over two
+  streams (default: `false`)
 
 A new output stream is emitted and the former is ended, if either
 `maxSize` or `maxDuration` is reached.
-
-If `maxSize < Infinity` and both `softlimit` and `splitWrites` are
-`false`, and error will be thrown as that combination could result in a
-chunk being too large to be written.
 
 ### Event: `stream`
 
@@ -87,12 +81,8 @@ The listener function is called with two arguments:
 
 - `stream` - A [readable] output stream
 - `next` - A function you must call when you're ready to receive a new
-  output stream
-
-### `chopper.chop([callback])`
-
-Manually chop the stream. The optional `callback` is called once
-chopped, potentially with an error.
+  output stream. If called with an error, the `chopper` stream is
+  destroyed
 
 ## License
 

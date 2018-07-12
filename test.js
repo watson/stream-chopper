@@ -10,81 +10,168 @@ test('default values', function (t) {
   t.equal(chopper._maxSize, Infinity)
   t.equal(chopper._maxDuration, -1)
   t.equal(chopper._softlimit, false)
-  t.equal(chopper._splitWrites, true)
   t.equal(chopper._locked, false)
   t.equal(chopper._starting, false)
   t.equal(chopper._ending, false)
   t.equal(chopper._draining, false)
+  t.equal(chopper._destroyed, false)
   t.end()
 })
 
-test('throws: {softlimit: false, splitWrites: false, maxSize: <Infinity}', function (t) {
-  t.throws(function () {
-    new StreamChopper({softlimit: false, splitWrites: false, maxSize: Number.MAX_SAFE_INTEGER}) // eslint-disable-line no-new
-  })
-  t.end()
-})
-
-test('does not throw: {softlimit: false, splitWrites: false, maxSize: Infinity}', function (t) {
-  t.doesNotThrow(function () {
-    new StreamChopper({softlimit: false, splitWrites: false, maxSize: Infinity}) // eslint-disable-line no-new
-  })
-  t.end()
-})
-
-test('chopper.chop(callback)', function (t) {
-  t.plan(8)
-
-  let emits = 0
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
-
-  chopper.on('stream', function (stream, next) {
-    const emit = ++emits
-    stream.on('data', function (chunk) {
-      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
-      t.equal(chunk.toString(), chunks.shift())
+bools.forEach(function (softlimit) {
+  test(`write with no remainder and ${softlimit ? 'softlimit' : 'no softlimit'}`, function (t) {
+    const sizeOfWrite = 'hello world 1'.length
+    const chopper = new StreamChopper({
+      maxSize: sizeOfWrite * 3, // allow for a length of exactly 3x of a single write
+      softlimit
     })
-    stream.on('end', function () {
-      t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
-      next()
-      if (emit === 2) t.end()
-    })
-  })
-
-  chopper.write('hello')
-  chopper.chop(function () {
-    chopper.write('world')
+    chopper.on('stream', assertOnStream(t, 3))
+    chopper.write('hello world 1')
+    chopper.write('hello world 1')
+    chopper.write('hello world 1')
+    chopper.write('hello world 2')
+    chopper.write('hello world 2')
+    chopper.write('hello world 2')
+    chopper.write('hello world 3')
+    chopper.write('hello world 3')
+    chopper.write('hello world 3')
     chopper.end()
   })
 })
 
-test('chopper.chop()', function (t) {
-  t.plan(8)
+test('2nd write with remainder and softlimit', function (t) {
+  const sizeOfWrite = 'hello world 1'.length
+  const chopper = new StreamChopper({
+    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
+    softlimit: true
+  })
+  chopper.on('stream', assertOnStream(t, 3))
+  chopper.write('hello world 1') // within limit
+  chopper.write('hello world 1') // go 0.5 over the limit
+  chopper.write('hello world 2') // within limit
+  chopper.write('hello world 2') // go 0.5 over the limit
+  chopper.write('hello world 3') // within limit
+  chopper.write('hello world 3') // go 0.5 over the limit
+  chopper.end()
+})
 
-  let emits = 0
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
+test('2nd write with remainder and no softlimit', function (t) {
+  const streams = [
+    ['hello world', 'h'],
+    ['ello world', 'he'],
+    ['llo world', 'hel'],
+    ['lo world']
+  ]
+
+  const chopper = new StreamChopper({
+    maxSize: 'hello world'.length + 1,
+    softlimit: false
+  })
 
   chopper.on('stream', function (stream, next) {
-    const emit = ++emits
+    const chunks = streams.shift()
+    const last = streams.length === 0
+    t.ok(chunks)
+
     stream.on('data', function (chunk) {
-      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
-      t.equal(chunk.toString(), chunks.shift())
+      const expected = chunks.shift()
+      t.ok(expected)
+      t.equal(chunk.toString(), expected, `should receive '${expected}'`)
     })
+
     stream.on('end', function () {
-      t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
       next()
-      if (emit === 2) t.end()
+      if (last) t.end()
     })
   })
 
-  chopper.write('hello')
-  chopper.chop()
-  chopper.write('world')
+  chopper.write('hello world')
+  chopper.write('hello world')
+  chopper.write('hello world')
+  chopper.write('hello world')
   chopper.end()
+})
+
+test('1st write with remainder and no softlimit', function (t) {
+  const streams = [
+    ['hello'],
+    [' worl'],
+    ['d', 'hell'],
+    ['o wor'],
+    ['ld']
+  ]
+
+  const chopper = new StreamChopper({maxSize: 5, softlimit: false})
+
+  chopper.on('stream', function (stream, next) {
+    const chunks = streams.shift()
+    const last = streams.length === 0
+    t.ok(chunks)
+
+    stream.on('data', function (chunk) {
+      const expected = chunks.shift()
+      t.ok(expected)
+      t.equal(chunk.toString(), expected)
+    })
+
+    stream.on('end', function () {
+      next()
+      if (last) t.end()
+    })
+  })
+
+  chopper.write('hello world')
+  chopper.write('hello world')
+  chopper.end()
+})
+
+test('if next() is not called, next stream should not be emitted', function (t) {
+  let emitted = false
+  const chopper = new StreamChopper({
+    maxSize: 4,
+    softlimit: true
+  })
+  chopper.on('stream', function (stream, next) {
+    t.equal(emitted, false)
+    emitted = true
+    stream.resume()
+  })
+  chopper.write('hello') // indirect chop
+  chopper.end('world') // indirect chop
+  setTimeout(function () {
+    t.end()
+  }, 100)
+})
+
+test('call next() with error', function (t) {
+  t.plan(1)
+  const err = new Error('foo')
+  const chopper = new StreamChopper()
+  chopper.on('stream', function (stream, next) {
+    next(err)
+  })
+  chopper.on('error', function (_err) {
+    t.equal(_err, err)
+  })
+  chopper.on('close', function () {
+    t.end()
+  })
+  chopper.write('hello')
+})
+
+test('copper.destroy() - synchronously during write', function (t) {
+  const chopper = new StreamChopper()
+  chopper.on('stream', function (stream, next) {
+    // this event is emitted synchronously during the chopper.write call below
+    chopper.destroy()
+  })
+  chopper.on('error', function (err) {
+    t.error(err)
+  })
+  chopper.on('close', function () {
+    t.end()
+  })
+  chopper.write('hello')
 })
 
 test('chopper.destroy() - active stream', function (t) {
@@ -96,8 +183,8 @@ test('chopper.destroy() - active stream', function (t) {
     stream.on('data', function (chunk) {
       t.equal(chunk.toString(), 'hello')
     })
-    stream.on('error', function () {
-      t.fail('should not emit error')
+    stream.on('error', function (err) {
+      t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
       t.ok(true)
@@ -109,8 +196,8 @@ test('chopper.destroy() - active stream', function (t) {
     t.end()
   })
 
-  chopper.on('error', function () {
-    t.fail('should not emit error')
+  chopper.on('error', function (err) {
+    t.error(err, 'error on the chopper')
   })
 
   chopper.write('hello')
@@ -120,15 +207,15 @@ test('chopper.destroy() - active stream', function (t) {
 test('chopper.destroy(err) - active stream', function (t) {
   t.plan(3)
 
-  const chopper = new StreamChopper()
   const err = new Error('foo')
+  const chopper = new StreamChopper()
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
       t.equal(chunk.toString(), 'hello')
     })
-    stream.on('error', function (_err) {
-      t.equal(_err, err)
+    stream.on('error', function (err) {
+      t.error(err)
     })
     stream.on('end', function () {
       t.ok(true)
@@ -140,8 +227,8 @@ test('chopper.destroy(err) - active stream', function (t) {
     t.end()
   })
 
-  chopper.on('error', function () {
-    t.fail('should not emit error')
+  chopper.on('error', function (_err) {
+    t.equal(_err, err)
   })
 
   chopper.write('hello')
@@ -149,65 +236,71 @@ test('chopper.destroy(err) - active stream', function (t) {
 })
 
 test('chopper.destroy() - no active stream', function (t) {
-  t.plan(2)
+  t.plan(3)
 
-  const chopper = new StreamChopper()
+  const chopper = new StreamChopper({
+    maxSize: 4,
+    softlimit: true
+  })
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
       t.equal(chunk.toString(), 'hello')
     })
-    stream.on('error', function () {
-      t.fail('should not emit error')
+    stream.on('error', function (err) {
+      t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
       t.ok(true)
       next()
+      t.end()
     })
   })
 
   chopper.on('close', function () {
-    t.end()
+    t.ok(true)
   })
 
-  chopper.on('error', function () {
-    t.fail('should not emit error')
+  chopper.on('error', function (err) {
+    t.error(err, 'error on the chopper')
   })
 
-  chopper.write('hello')
-  chopper.chop() // make sure there's no active stream
+  chopper.write('hello') // force chop to make sure there's no active stream
   chopper.destroy()
 })
 
 test('chopper.destroy(err) - no active stream', function (t) {
-  t.plan(2)
+  t.plan(4)
 
-  const chopper = new StreamChopper()
   const err = new Error('foo')
+  const chopper = new StreamChopper({
+    maxSize: 4,
+    softlimit: true
+  })
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
       t.equal(chunk.toString(), 'hello')
     })
-    stream.on('error', function () {
-      t.fail('should not emit error')
+    stream.on('error', function (err) {
+      t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
       t.ok(true)
       next()
+      t.end()
     })
   })
 
   chopper.on('close', function () {
-    t.end()
+    t.ok(true)
   })
 
-  chopper.on('error', function () {
-    t.fail('should not emit error')
+  chopper.on('error', function (_err) {
+    t.equal(_err, err)
   })
 
-  chopper.write('hello')
-  chopper.chop() // make sure there's no active stream
+  chopper.write('hello') // force chop to make sure there's no active stream
   chopper.destroy(err)
 })
 
@@ -265,139 +358,125 @@ test('should chop when maxDuration timeout occurs', function (t) {
   }, 100)
 })
 
-test('if next() isn\'t called, next stream should be emitted', function (t) {
-  let emitted = false
+test('handle backpressure when current stream is full, but next() haven\'t been called yet', function (t) {
+  t.plan(4)
+
+  const chunks = ['foo', 'bar', 'baz']
+  let emits = 0
+  let firstNext
+
+  const chopper = new StreamChopper({
+    maxSize: 2,
+    softlimit: true
+  })
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const expected = chunks.shift()
+
+    if (emit === 1) firstNext = next
+
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), expected)
+    })
+
+    stream.on('end', function () {
+      if (emit > 1) next()
+      if (emit === 3) t.end()
+    })
+  })
+
+  chopper.write('foo') // indirect chop
+  chopper.write('bar') // indirect chop
+  chopper.end('baz') // indirect chop
+
+  t.equal(emits, 1, 'should only have emitted the first stream')
+
+  firstNext()
+})
+
+test('output stream destroyed by user', function (t) {
+  t.plan(2)
+
+  let emits = 0
   const chopper = new StreamChopper()
+
   chopper.on('stream', function (stream, next) {
-    t.equal(emitted, false)
-    emitted = true
-    stream.resume()
+    const emit = ++emits
+
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'hello')
+      stream.destroy() // force output stream to end unexpectedly
+    })
+    stream.on('end', function () {
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      t.end()
+    })
   })
+
   chopper.write('hello')
-  chopper.chop()
-  chopper.end('world')
-  setTimeout(function () {
-    t.end()
-  }, 100)
 })
 
-bools.forEach(function (softlimit) {
-  bools.forEach(function (splitWrites) {
-    if (!softlimit && !splitWrites) return // invalid combo of config options
+test('output stream destroyed by user followed by chopper.write() when stream emits end', function (t) {
+  t.plan(4)
 
-    const sizeOfWrite = 'hello world 1'.length
-    const opts = {
-      maxSize: sizeOfWrite * 3, // allow for a length of exactly 3x of a single write
-      softlimit,
-      splitWrites
-    }
-
-    test('write with no remainder: ' + JSON.stringify(opts), function (t) {
-      const chopper = new StreamChopper(opts)
-      chopper.on('stream', assertOnStream(t, 3))
-      chopper.write('hello world 1')
-      chopper.write('hello world 1')
-      chopper.write('hello world 1')
-      chopper.write('hello world 2')
-      chopper.write('hello world 2')
-      chopper.write('hello world 2')
-      chopper.write('hello world 3')
-      chopper.write('hello world 3')
-      chopper.write('hello world 3')
-      chopper.end()
-    })
-  })
-})
-
-test('write with remainder: maxSize + softlimit + no splitWrites', function (t) {
-  const sizeOfWrite = 'hello world 1'.length
-  const maxSize = Math.round(sizeOfWrite + sizeOfWrite / 2) // allow for a length of 1.5x of a single write
-
-  const chopper = new StreamChopper({maxSize, softlimit: true, splitWrites: false})
-  chopper.on('stream', assertOnStream(t, 3))
-  chopper.write('hello world 1')
-  chopper.write('hello world 1') // go 0.5 over the limit
-  chopper.write('hello world 2')
-  chopper.write('hello world 2') // go 0.5 over the limit
-  chopper.write('hello world 3')
-  chopper.write('hello world 3') // go 0.5 over the limit
-  chopper.end()
-})
-
-// when splitWrites:true, then softlimit shouldn't have an effect
-bools.forEach(function (softlimit) {
-  const opts = {
-    maxSize: 12,
-    splitWrites: true,
-    softlimit
-  }
-
-  test('write with remainder: ' + JSON.stringify(opts), function (t) {
-    const streams = [
-      ['hello world', 'h'],
-      ['ello world', 'he'],
-      ['llo world', 'hel'],
-      ['lo world']
-    ]
-
-    const chopper = new StreamChopper(opts)
-
-    chopper.on('stream', function (stream, next) {
-      const chunks = streams.shift()
-      const last = streams.length === 0
-      t.ok(chunks)
-
-      stream.on('data', function (chunk) {
-        const expected = chunks.shift()
-        t.ok(expected)
-        t.equal(chunk.toString(), expected)
-      })
-
-      stream.on('end', function () {
-        next()
-        if (last) t.end()
-      })
-    })
-
-    chopper.write('hello world')
-    chopper.write('hello world')
-    chopper.write('hello world')
-    chopper.write('hello world')
-    chopper.end()
-  })
-})
-
-test('softlimit: false, splitWrites: true, chunk.length > maxSize', function (t) {
-  const streams = [
-    ['hello'],
-    [' worl'],
-    ['d', 'hell'],
-    ['o wor'],
-    ['ld']
-  ]
-
-  const chopper = new StreamChopper({softlimit: false, splitWrites: true, maxSize: 5})
+  let emits = 0
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
 
   chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), chunks.shift())
+      if (emit === 1) stream.destroy() // force output stream to end unexpectedly
+    })
+    stream.on('end', function () {
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      if (emit === 1) chopper.end('world') // start writing before stream have emitted finish
+      else t.end()
+    })
+  })
+
+  chopper.write('hello')
+})
+
+test('output stream destroyed by user followed directly by chopper.write()', function (t) {
+  t.plan(14)
+
+  let emits = 0
+  const streams = [
+    ['foo'],
+    ['bar', 'b'],
+    ['az']
+  ]
+  const chopper = new StreamChopper({maxSize: 4})
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
     const chunks = streams.shift()
-    const last = streams.length === 0
     t.ok(chunks)
 
     stream.on('data', function (chunk) {
       const expected = chunks.shift()
       t.ok(expected)
-      t.equal(chunk.toString(), expected)
+      t.equal(chunk.toString(), expected, `should get '${expected}'`)
+      if (emit === 1) {
+        stream.destroy() // force output stream to end unexpectedly
+        chopper.write('bar') // start writing while stream is in the process of being destroyed
+        chopper.end('baz') // start writing while stream is locked
+      }
     })
-
     stream.on('end', function () {
+      t.ok(true, `stream ${emit} ended`)
       next()
-      if (last) t.end()
+      if (emit === 3) t.end()
     })
   })
 
-  chopper.write('hello world')
-  chopper.write('hello world')
-  chopper.end()
+  chopper.write('foo')
 })
 
 function assertOnStream (t, expectedEmits) {

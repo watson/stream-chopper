@@ -17,7 +17,6 @@ function StreamChopper (opts) {
   this._maxSize = opts.maxSize || Infinity // TODO: Consider calling this size instead
   this._maxDuration = opts.maxDuration || -1 // TODO: Consider calling this either duration or time instead
   this._softlimit = !!opts.softlimit
-  this._splitWrites = opts.splitWrites !== false
 
   this._bytes = 0
   this._stream = null
@@ -26,18 +25,12 @@ function StreamChopper (opts) {
   this._starting = false
   this._ending = false
   this._draining = false
+  this._destroyed = false
 
   this._onunlock = noop
   this._next = noop
   this._oneos = oneos
   this._ondrain = ondrain
-
-  if (this._softlimit === false && this._splitWrites === false && this._maxSize < Infinity) {
-    // Without this check we might have a situation where the size of the
-    // written data was too big to fit without needing to be split into
-    // multiple streams
-    throw new Error('If maxSize < Infinity, either softlimit or splitWrites have to be true')
-  }
 
   const self = this
 
@@ -54,7 +47,8 @@ function StreamChopper (opts) {
   }
 }
 
-StreamChopper.prototype.chop = function (cb) {
+StreamChopper.prototype._chop = function (cb) {
+  if (this._destroyed) return
   this._endStream(err => {
     if (err) {
       if (cb) cb(err)
@@ -66,6 +60,7 @@ StreamChopper.prototype.chop = function (cb) {
 }
 
 StreamChopper.prototype._startStream = function (cb) {
+  if (this._destroyed) return
   if (this._locked) {
     this._onunlock = cb
     return
@@ -76,6 +71,7 @@ StreamChopper.prototype._startStream = function (cb) {
     .on('close', this._oneos)
     .on('error', this._oneos)
     .on('finish', this._oneos)
+    .on('end', this._oneos) // in case stream.destroy() is called by the user
     .on('drain', this._ondrain)
 
   this._locked = true
@@ -95,15 +91,21 @@ StreamChopper.prototype._startStream = function (cb) {
   if (this._maxDuration !== -1) {
     this._timer = setTimeout(() => {
       this._timer = null
-      this.chop()
+      this._chop()
     }, this._maxDuration)
     this._timer.unref()
   }
 
-  process.nextTick(cb)
+  // To ensure that the write that caused this stream to be started
+  // is perfromed in the same tick, call the callback synchronously.
+  // Note that we can't do this in case the chopper is locked.
+  cb()
 }
 
 StreamChopper.prototype._endStream = function (cb) {
+  if (this._destroyed) return
+  if (this._stream === null) return process.nextTick(cb)
+
   this._ending = true
 
   const stream = this._stream
@@ -130,61 +132,79 @@ StreamChopper.prototype._removeStream = function () {
   this._stream.removeListener('error', this._oneos)
   this._stream.removeListener('close', this._oneos)
   this._stream.removeListener('finish', this._oneos)
+  this._stream.removeListener('end', this._oneos)
   this._stream.removeListener('drain', this._ondrain)
   this._stream = null
 }
 
 StreamChopper.prototype._write = function (chunk, enc, cb) {
+  if (this._destroyed) return
   if (this._stream === null) {
     this._startStream(() => {
-      this._write(chunk, enc, cb) // TODO: Is it allowed to call _write in this case?
+      this._write(chunk, enc, cb)
     })
     return
-  } else if (this._bytes >= this._maxSize ||
-      (!this._softlimit && (this._bytes + chunk.length) > this._maxSize) ||
-      (this._splitWrites && (this._bytes + chunk.length) > this._maxSize)) {
-    const missing = this._maxSize - this._bytes
-    if (this._writableState.objectMode === false && this._splitWrites && missing > 0) {
-      this._stream.write(chunk.slice(0, missing))
-      chunk = chunk.slice(missing)
-    }
+  }
 
-    this.chop(err => {
-      if (err) return cb(err)
-      this._write(chunk, enc, cb) // TODO: Is it allowed to call _write in this case?
+  const destroyed = this._stream._writableState.destroyed || this._stream._readableState.destroyed
+
+  if (destroyed) {
+    this._startStream(() => {
+      this._write(chunk, enc, cb)
     })
     return
   }
 
   this._bytes += chunk.length
 
-  if (this._stream.write(chunk) === false) this._draining = true
-  if (this._draining === false) cb()
-  else this._next = cb
+  const overflow = this._bytes - this._maxSize
+
+  if (overflow > 0 && !this._softlimit) {
+    const remaining = chunk.length - overflow
+    this._stream.write(chunk.slice(0, remaining))
+    chunk = chunk.slice(remaining)
+
+    this._chop(err => {
+      if (err) return cb(err)
+      this._write(chunk, enc, cb)
+    })
+    return
+  }
+
+  if (overflow < 0) {
+    if (this._stream.write(chunk) === false) this._draining = true
+    if (this._draining === false) cb()
+    else this._next = cb
+  } else {
+    // if we reached the maxSize limit, just end the stream already
+    this._stream.end(chunk)
+    this._endStream(cb)
+  }
 }
 
 StreamChopper.prototype._destroy = function (err, cb) {
+  if (this._destroyed) return
+  this._destroyed = true
+
+  if (err) this.emit('error', err)
+
   const stream = this._stream
   this._removeStream()
-  if (stream !== null) {
-    stream.on('error', done)
-    stream.on('close', done)
-    stream.on('finish', done)
-    // TODO: Is this the correct way to handle the error?
-    stream.destroy(err)
-  } else {
-    cb()
-  }
 
-  function done (err) {
-    stream.removeListener('error', done)
-    stream.removeListener('close', done)
-    stream.removeListener('finish', done)
-    cb(err)
+  if (stream !== null) {
+    stream.once('close', () => {
+      this.emit('close')
+      cb()
+    })
+    stream.destroy() // TODO: Should I listen for `error` even though I'm not passing in an error to destroy()?
+  } else {
+    this.emit('close')
+    cb()
   }
 }
 
 StreamChopper.prototype._final = function (cb) {
+  if (this._destroyed) return
   if (this._stream === null) return cb()
   this._stream.end(cb)
 }
