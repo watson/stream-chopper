@@ -21,9 +21,9 @@ Example app:
 const StreamChopper = require('stream-chopper')
 
 const chopper = new StreamChopper({
-  size: 30,                    // chop stream when it reaches 30 bytes
-  time: 10000,                 // chop stream if it's been open for 10s
-  type: StreamChopper.overflow // allow stream to exeed size slightly
+  size: 30,                    // chop stream when it reaches 30 bytes,
+  time: 10000,                 // or when it's been open for 10s,
+  type: StreamChopper.overflow // but allow stream to exeed size slightly
 })
 
 chopper.on('stream', function (stream, next) {
