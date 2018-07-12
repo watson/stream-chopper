@@ -20,9 +20,9 @@ Example app:
 const StreamChopper = require('stream-chopper')
 
 const chopper = new StreamChopper({
-  maxSize: 30,        // chop stream when it reaches 30 bytes
-  maxDuration: 10000, // chop stream if it's been open for 10s
-  softlimit: true     // allow size to exeed maxSize slightly
+  maxSize: 30,                      // chop stream when it reaches 30 bytes
+  maxDuration: 10000,               // chop stream if it's been open for 10s
+  splittype: StreamChopper.overflow // allow size to exeed size slightly
 })
 
 chopper.on('stream', function (stream, next) {
@@ -63,13 +63,19 @@ config options:
 - `maxDuration` - The maximum number of milliseconds that an output
   stream can be in use before a new output stream is emitted (default:
   `-1` which means no limit)
-- `softlimit` - If `true`, the last write to the `chopper` stream that
-  makes it go over the `maxSize` will be allowed to be written to the
-  current output stream. If `false`, the chunk will be split over two
-  streams (default: `false`)
+- `splittype` - Change the algoritm used to determine how a written
+  chunk that cannot fit into the current output stream should be
+  handled. The following values are possible:
+  - `StreamChopper.split` - Fit as much data from the chunk as possible
+    into the current stream and write the remainder to the next stream
+    (default)
+  - `StreamChopper.overflow` - Allow the entire chunk to be written to
+    the current stream. After writing, the stream is ended
+  - `StreamChopper.underflow` - End the current output stream and write
+    the entire chunk to the next stream
 
-A new output stream is emitted and the former is ended, if either
-`maxSize` or `maxDuration` is reached.
+If `splittype` is `StreamChopper.underflow` and the size of the written
+chunk is larger than `size` and error is emitted.
 
 ### Event: `stream`
 

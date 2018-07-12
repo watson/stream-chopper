@@ -8,6 +8,16 @@ module.exports = StreamChopper
 
 util.inherits(StreamChopper, Writable)
 
+StreamChopper.split = Symbol('split')
+StreamChopper.overflow = Symbol('overflow')
+StreamChopper.underflow = Symbol('underflow')
+
+const splittypes = [
+  StreamChopper.split,
+  StreamChopper.overflow,
+  StreamChopper.underflow
+]
+
 function StreamChopper (opts) {
   if (!(this instanceof StreamChopper)) return new StreamChopper(opts)
   if (!opts) opts = {}
@@ -16,7 +26,9 @@ function StreamChopper (opts) {
 
   this._maxSize = opts.maxSize || Infinity // TODO: Consider calling this size instead
   this._maxDuration = opts.maxDuration || -1 // TODO: Consider calling this either duration or time instead
-  this._softlimit = !!opts.softlimit
+  this._splittype = splittypes.indexOf(opts.splittype) === -1 // TODO: Find better name
+    ? StreamChopper.split
+    : opts.splittype
 
   this._bytes = 0
   this._stream = null
@@ -158,11 +170,17 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
   this._bytes += chunk.length
 
   const overflow = this._bytes - this._maxSize
+  if (overflow > 0 && this._splittype !== StreamChopper.overflow) {
+    if (this._splittype === StreamChopper.split) {
+      const remaining = chunk.length - overflow
+      this._stream.write(chunk.slice(0, remaining))
+      chunk = chunk.slice(remaining)
+    }
 
-  if (overflow > 0 && !this._softlimit) {
-    const remaining = chunk.length - overflow
-    this._stream.write(chunk.slice(0, remaining))
-    chunk = chunk.slice(remaining)
+    if (this._splittype === StreamChopper.underflow && this._bytes - chunk.length === 0) {
+      cb(new Error(`Cannot write ${chunk.length} byte chunk - only ${this._maxSize} available`))
+      return
+    }
 
     this._chop(err => {
       if (err) return cb(err)

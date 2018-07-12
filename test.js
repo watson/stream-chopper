@@ -3,13 +3,17 @@
 const test = require('tape')
 const StreamChopper = require('./')
 
-const bools = [true, false]
+const splittypes = [
+  StreamChopper.split,
+  StreamChopper.overflow,
+  StreamChopper.underflow
+]
 
 test('default values', function (t) {
   const chopper = new StreamChopper()
   t.equal(chopper._maxSize, Infinity)
   t.equal(chopper._maxDuration, -1)
-  t.equal(chopper._softlimit, false)
+  t.equal(chopper._splittype, StreamChopper.split)
   t.equal(chopper._locked, false)
   t.equal(chopper._starting, false)
   t.equal(chopper._ending, false)
@@ -18,12 +22,12 @@ test('default values', function (t) {
   t.end()
 })
 
-bools.forEach(function (softlimit) {
-  test(`write with no remainder and ${softlimit ? 'softlimit' : 'no softlimit'}`, function (t) {
+splittypes.forEach(function (splittype) {
+  test(`write with no remainder and splittype:${splittype.toString()}`, function (t) {
     const sizeOfWrite = 'hello world 1'.length
     const chopper = new StreamChopper({
       maxSize: sizeOfWrite * 3, // allow for a length of exactly 3x of a single write
-      softlimit
+      splittype
     })
     chopper.on('stream', assertOnStream(t, 3))
     chopper.write('hello world 1')
@@ -39,23 +43,7 @@ bools.forEach(function (softlimit) {
   })
 })
 
-test('2nd write with remainder and softlimit', function (t) {
-  const sizeOfWrite = 'hello world 1'.length
-  const chopper = new StreamChopper({
-    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
-    softlimit: true
-  })
-  chopper.on('stream', assertOnStream(t, 3))
-  chopper.write('hello world 1') // within limit
-  chopper.write('hello world 1') // go 0.5 over the limit
-  chopper.write('hello world 2') // within limit
-  chopper.write('hello world 2') // go 0.5 over the limit
-  chopper.write('hello world 3') // within limit
-  chopper.write('hello world 3') // go 0.5 over the limit
-  chopper.end()
-})
-
-test('2nd write with remainder and no softlimit', function (t) {
+test('2nd write with remainder and splittype:split', function (t) {
   const streams = [
     ['hello world', 'h'],
     ['ello world', 'he'],
@@ -65,7 +53,7 @@ test('2nd write with remainder and no softlimit', function (t) {
 
   const chopper = new StreamChopper({
     maxSize: 'hello world'.length + 1,
-    softlimit: false
+    splittype: StreamChopper.split
   })
 
   chopper.on('stream', function (stream, next) {
@@ -92,7 +80,37 @@ test('2nd write with remainder and no softlimit', function (t) {
   chopper.end()
 })
 
-test('1st write with remainder and no softlimit', function (t) {
+test('2nd write with remainder and splittype:overflow', function (t) {
+  const sizeOfWrite = 'hello world 1'.length
+  const chopper = new StreamChopper({
+    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
+    splittype: StreamChopper.overflow
+  })
+  chopper.on('stream', assertOnStream(t, 3))
+  chopper.write('hello world 1') // within limit
+  chopper.write('hello world 1') // go 0.5 over the limit
+  chopper.write('hello world 2') // within limit
+  chopper.write('hello world 2') // go 0.5 over the limit
+  chopper.write('hello world 3') // within limit
+  chopper.write('hello world 3') // go 0.5 over the limit
+  chopper.end()
+})
+
+test('2nd write with remainder and splittype:underflow', function (t) {
+  const sizeOfWrite = 'hello world 1'.length
+  const chopper = new StreamChopper({
+    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
+    splittype: StreamChopper.underflow
+  })
+  chopper.on('stream', assertOnStream(t, 4))
+  chopper.write('hello world 1') // within limit
+  chopper.write('hello world 2') // go 0.5 over the limit
+  chopper.write('hello world 3') // within limit
+  chopper.write('hello world 4') // go 0.5 over the limit
+  chopper.end()
+})
+
+test('1st write with remainder and splittype:split', function (t) {
   const streams = [
     ['hello'],
     [' worl'],
@@ -101,7 +119,7 @@ test('1st write with remainder and no softlimit', function (t) {
     ['ld']
   ]
 
-  const chopper = new StreamChopper({maxSize: 5, softlimit: false})
+  const chopper = new StreamChopper({maxSize: 5, splittype: StreamChopper.split})
 
   chopper.on('stream', function (stream, next) {
     const chunks = streams.shift()
@@ -125,11 +143,36 @@ test('1st write with remainder and no softlimit', function (t) {
   chopper.end()
 })
 
+test('1st write with remainder and splittype:overflow', function (t) {
+  const chopper = new StreamChopper({maxSize: 5, splittype: StreamChopper.overflow})
+  chopper.on('stream', assertOnStream(t, 2))
+  chopper.write('hello world 1')
+  chopper.write('hello world 2')
+  chopper.end()
+})
+
+test('1st write with remainder and splittype:underflow', function (t) {
+  const chopper = new StreamChopper({maxSize: 4, splittype: StreamChopper.underflow})
+
+  chopper.on('stream', function (stream, next) {
+    stream.resume()
+    next()
+  })
+
+  chopper.on('error', function (err) {
+    t.equal(err.message, 'Cannot write 5 byte chunk - only 4 available')
+    t.end()
+  })
+
+  chopper.write('hello')
+  chopper.end()
+})
+
 test('if next() is not called, next stream should not be emitted', function (t) {
   let emitted = false
   const chopper = new StreamChopper({
     maxSize: 4,
-    softlimit: true
+    splittype: StreamChopper.overflow
   })
   chopper.on('stream', function (stream, next) {
     t.equal(emitted, false)
@@ -240,7 +283,7 @@ test('chopper.destroy() - no active stream', function (t) {
 
   const chopper = new StreamChopper({
     maxSize: 4,
-    softlimit: true
+    splittype: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
@@ -275,7 +318,7 @@ test('chopper.destroy(err) - no active stream', function (t) {
   const err = new Error('foo')
   const chopper = new StreamChopper({
     maxSize: 4,
-    softlimit: true
+    splittype: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
@@ -367,7 +410,7 @@ test('handle backpressure when current stream is full, but next() haven\'t been 
 
   const chopper = new StreamChopper({
     maxSize: 2,
-    softlimit: true
+    splittype: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
