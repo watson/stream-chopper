@@ -1,4 +1,4 @@
-# stream-chopper (WIP!)
+# stream-chopper
 
 Chop a single stream of data into a series of readable streams.
 
@@ -22,7 +22,7 @@ const StreamChopper = require('stream-chopper')
 const chopper = new StreamChopper({
   size: 30,                    // chop stream when it reaches 30 bytes
   time: 10000,                 // chop stream if it's been open for 10s
-  type: StreamChopper.overflow // allow size to exeed size slightly
+  type: StreamChopper.overflow // allow stream to exeed size slightly
 })
 
 chopper.on('stream', function (stream, next) {
@@ -79,7 +79,7 @@ is larger than `size` and error is emitted.
 
 ### Event: `stream`
 
-Emitted every time a new output stream is ready. You mist listen for
+Emitted every time a new output stream is ready. You must listen for
 this event.
 
 The listener function is called with two arguments:
