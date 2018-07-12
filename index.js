@@ -59,18 +59,6 @@ function StreamChopper (opts) {
   }
 }
 
-StreamChopper.prototype._chop = function (cb) {
-  if (this._destroyed) return
-  this._endStream(err => {
-    if (err) {
-      if (cb) cb(err)
-      else this.emit('error', err) // TODO: Is this the right thing to do?
-      return
-    }
-    if (cb) cb()
-  })
-}
-
 StreamChopper.prototype._startStream = function (cb) {
   if (this._destroyed) return
   if (this._locked) {
@@ -103,7 +91,7 @@ StreamChopper.prototype._startStream = function (cb) {
   if (this._time !== -1) {
     this._timer = setTimeout(() => {
       this._timer = null
-      this._chop()
+      this._endStream()
     }, this._time)
     this._timer.unref()
   }
@@ -121,9 +109,9 @@ StreamChopper.prototype._endStream = function (cb) {
   this._ending = true
 
   const stream = this._stream
-  const done = (err) => {
+  const done = () => {
     this._ending = false
-    cb(err)
+    if (cb) cb()
   }
 
   // ensure all timers and event listeners related to the current stream is removed
@@ -183,8 +171,7 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
       return
     }
 
-    this._chop(err => {
-      if (err) return cb(err)
+    this._endStream(() => {
       this._write(chunk, enc, cb)
     })
     return
