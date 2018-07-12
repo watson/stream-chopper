@@ -95,8 +95,7 @@ StreamChopper.prototype._endStream = function (cb) {
   const stream = this._stream
   const done = (err) => {
     this._ending = false
-    if (cb) cb(err)
-    else if (err) this.emit('error', err) // TODO: Should we emit this error?
+    cb(err)
   }
 
   // ensure all timers and event listeners related to the current stream is removed
@@ -104,14 +103,9 @@ StreamChopper.prototype._endStream = function (cb) {
 
   // if stream hasn't yet ended, make sure to end it properly
   if (!stream._writableState.ending && !stream._writableState.finished) {
-    stream.end(err => {
-      if (err) return done(err)
-      done()
-    })
-  } else if (cb) {
-    process.nextTick(done)
+    stream.end(done)
   } else {
-    done()
+    process.nextTick(done)
   }
 }
 
