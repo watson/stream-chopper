@@ -20,9 +20,9 @@ Example app:
 const StreamChopper = require('stream-chopper')
 
 const chopper = new StreamChopper({
-  maxSize: 30,                      // chop stream when it reaches 30 bytes
-  maxDuration: 10000,               // chop stream if it's been open for 10s
-  splittype: StreamChopper.overflow // allow size to exeed size slightly
+  size: 30,                    // chop stream when it reaches 30 bytes
+  time: 10000,                 // chop stream if it's been open for 10s
+  type: StreamChopper.overflow // allow size to exeed size slightly
 })
 
 chopper.on('stream', function (stream, next) {
@@ -57,15 +57,15 @@ Takes an optional `options` object which, besides the normal options
 accepted by the [`Writable`][writable] class, accepts the following
 config options:
 
-- `maxSize` - The maximum number of bytes that can be written to the
+- `size` - The maximum number of bytes that can be written to the
   `chopper` stream before a new output stream is emitted (default:
   `Infinity`)
-- `maxDuration` - The maximum number of milliseconds that an output
-  stream can be in use before a new output stream is emitted (default:
-  `-1` which means no limit)
-- `splittype` - Change the algoritm used to determine how a written
-  chunk that cannot fit into the current output stream should be
-  handled. The following values are possible:
+- `time` - The maximum number of milliseconds that an output stream can
+  be in use before a new output stream is emitted (default: `-1` which
+  means no limit)
+- `type` - Change the algoritm used to determine how a written chunk
+  that cannot fit into the current output stream should be handled. The
+  following values are possible:
   - `StreamChopper.split` - Fit as much data from the chunk as possible
     into the current stream and write the remainder to the next stream
     (default)
@@ -74,8 +74,8 @@ config options:
   - `StreamChopper.underflow` - End the current output stream and write
     the entire chunk to the next stream
 
-If `splittype` is `StreamChopper.underflow` and the size of the written
-chunk is larger than `size` and error is emitted.
+If `type` is `StreamChopper.underflow` and the size of the written chunk
+is larger than `size` and error is emitted.
 
 ### Event: `stream`
 

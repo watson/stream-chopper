@@ -12,7 +12,7 @@ StreamChopper.split = Symbol('split')
 StreamChopper.overflow = Symbol('overflow')
 StreamChopper.underflow = Symbol('underflow')
 
-const splittypes = [
+const types = [
   StreamChopper.split,
   StreamChopper.overflow,
   StreamChopper.underflow
@@ -24,11 +24,11 @@ function StreamChopper (opts) {
 
   Writable.call(this, opts)
 
-  this._maxSize = opts.maxSize || Infinity // TODO: Consider calling this size instead
-  this._maxDuration = opts.maxDuration || -1 // TODO: Consider calling this either duration or time instead
-  this._splittype = splittypes.indexOf(opts.splittype) === -1 // TODO: Find better name
+  this._size = opts.size || Infinity
+  this._time = opts.time || -1
+  this._type = types.indexOf(opts.type) === -1
     ? StreamChopper.split
-    : opts.splittype
+    : opts.type
 
   this._bytes = 0
   this._stream = null
@@ -100,11 +100,11 @@ StreamChopper.prototype._startStream = function (cb) {
   })
   this._starting = false
 
-  if (this._maxDuration !== -1) {
+  if (this._time !== -1) {
     this._timer = setTimeout(() => {
       this._timer = null
       this._chop()
-    }, this._maxDuration)
+    }, this._time)
     this._timer.unref()
   }
 
@@ -169,16 +169,17 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
 
   this._bytes += chunk.length
 
-  const overflow = this._bytes - this._maxSize
-  if (overflow > 0 && this._splittype !== StreamChopper.overflow) {
-    if (this._splittype === StreamChopper.split) {
+  const overflow = this._bytes - this._size
+
+  if (overflow > 0 && this._type !== StreamChopper.overflow) {
+    if (this._type === StreamChopper.split) {
       const remaining = chunk.length - overflow
       this._stream.write(chunk.slice(0, remaining))
       chunk = chunk.slice(remaining)
     }
 
-    if (this._splittype === StreamChopper.underflow && this._bytes - chunk.length === 0) {
-      cb(new Error(`Cannot write ${chunk.length} byte chunk - only ${this._maxSize} available`))
+    if (this._type === StreamChopper.underflow && this._bytes - chunk.length === 0) {
+      cb(new Error(`Cannot write ${chunk.length} byte chunk - only ${this._size} available`))
       return
     }
 
@@ -194,7 +195,7 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
     if (this._draining === false) cb()
     else this._next = cb
   } else {
-    // if we reached the maxSize limit, just end the stream already
+    // if we reached the size limit, just end the stream already
     this._stream.end(chunk)
     this._endStream(cb)
   }

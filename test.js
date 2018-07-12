@@ -3,7 +3,7 @@
 const test = require('tape')
 const StreamChopper = require('./')
 
-const splittypes = [
+const types = [
   StreamChopper.split,
   StreamChopper.overflow,
   StreamChopper.underflow
@@ -11,9 +11,9 @@ const splittypes = [
 
 test('default values', function (t) {
   const chopper = new StreamChopper()
-  t.equal(chopper._maxSize, Infinity)
-  t.equal(chopper._maxDuration, -1)
-  t.equal(chopper._splittype, StreamChopper.split)
+  t.equal(chopper._size, Infinity)
+  t.equal(chopper._time, -1)
+  t.equal(chopper._type, StreamChopper.split)
   t.equal(chopper._locked, false)
   t.equal(chopper._starting, false)
   t.equal(chopper._ending, false)
@@ -22,12 +22,12 @@ test('default values', function (t) {
   t.end()
 })
 
-splittypes.forEach(function (splittype) {
-  test(`write with no remainder and splittype:${splittype.toString()}`, function (t) {
+types.forEach(function (type) {
+  test(`write with no remainder and type:${type.toString()}`, function (t) {
     const sizeOfWrite = 'hello world 1'.length
     const chopper = new StreamChopper({
-      maxSize: sizeOfWrite * 3, // allow for a length of exactly 3x of a single write
-      splittype
+      size: sizeOfWrite * 3, // allow for a length of exactly 3x of a single write
+      type
     })
     chopper.on('stream', assertOnStream(t, 3))
     chopper.write('hello world 1')
@@ -43,7 +43,7 @@ splittypes.forEach(function (splittype) {
   })
 })
 
-test('2nd write with remainder and splittype:split', function (t) {
+test('2nd write with remainder and type:split', function (t) {
   const streams = [
     ['hello world', 'h'],
     ['ello world', 'he'],
@@ -52,8 +52,8 @@ test('2nd write with remainder and splittype:split', function (t) {
   ]
 
   const chopper = new StreamChopper({
-    maxSize: 'hello world'.length + 1,
-    splittype: StreamChopper.split
+    size: 'hello world'.length + 1,
+    type: StreamChopper.split
   })
 
   chopper.on('stream', function (stream, next) {
@@ -80,11 +80,11 @@ test('2nd write with remainder and splittype:split', function (t) {
   chopper.end()
 })
 
-test('2nd write with remainder and splittype:overflow', function (t) {
+test('2nd write with remainder and type:overflow', function (t) {
   const sizeOfWrite = 'hello world 1'.length
   const chopper = new StreamChopper({
-    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
-    splittype: StreamChopper.overflow
+    size: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
+    type: StreamChopper.overflow
   })
   chopper.on('stream', assertOnStream(t, 3))
   chopper.write('hello world 1') // within limit
@@ -96,11 +96,11 @@ test('2nd write with remainder and splittype:overflow', function (t) {
   chopper.end()
 })
 
-test('2nd write with remainder and splittype:underflow', function (t) {
+test('2nd write with remainder and type:underflow', function (t) {
   const sizeOfWrite = 'hello world 1'.length
   const chopper = new StreamChopper({
-    maxSize: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
-    splittype: StreamChopper.underflow
+    size: Math.round(sizeOfWrite + sizeOfWrite / 2), // allow for a length of 1.5x of a single write
+    type: StreamChopper.underflow
   })
   chopper.on('stream', assertOnStream(t, 4))
   chopper.write('hello world 1') // within limit
@@ -110,7 +110,7 @@ test('2nd write with remainder and splittype:underflow', function (t) {
   chopper.end()
 })
 
-test('1st write with remainder and splittype:split', function (t) {
+test('1st write with remainder and type:split', function (t) {
   const streams = [
     ['hello'],
     [' worl'],
@@ -119,7 +119,7 @@ test('1st write with remainder and splittype:split', function (t) {
     ['ld']
   ]
 
-  const chopper = new StreamChopper({maxSize: 5, splittype: StreamChopper.split})
+  const chopper = new StreamChopper({size: 5, type: StreamChopper.split})
 
   chopper.on('stream', function (stream, next) {
     const chunks = streams.shift()
@@ -143,16 +143,16 @@ test('1st write with remainder and splittype:split', function (t) {
   chopper.end()
 })
 
-test('1st write with remainder and splittype:overflow', function (t) {
-  const chopper = new StreamChopper({maxSize: 5, splittype: StreamChopper.overflow})
+test('1st write with remainder and type:overflow', function (t) {
+  const chopper = new StreamChopper({size: 5, type: StreamChopper.overflow})
   chopper.on('stream', assertOnStream(t, 2))
   chopper.write('hello world 1')
   chopper.write('hello world 2')
   chopper.end()
 })
 
-test('1st write with remainder and splittype:underflow', function (t) {
-  const chopper = new StreamChopper({maxSize: 4, splittype: StreamChopper.underflow})
+test('1st write with remainder and type:underflow', function (t) {
+  const chopper = new StreamChopper({size: 4, type: StreamChopper.underflow})
 
   chopper.on('stream', function (stream, next) {
     stream.resume()
@@ -171,8 +171,8 @@ test('1st write with remainder and splittype:underflow', function (t) {
 test('if next() is not called, next stream should not be emitted', function (t) {
   let emitted = false
   const chopper = new StreamChopper({
-    maxSize: 4,
-    splittype: StreamChopper.overflow
+    size: 4,
+    type: StreamChopper.overflow
   })
   chopper.on('stream', function (stream, next) {
     t.equal(emitted, false)
@@ -282,8 +282,8 @@ test('chopper.destroy() - no active stream', function (t) {
   t.plan(3)
 
   const chopper = new StreamChopper({
-    maxSize: 4,
-    splittype: StreamChopper.overflow
+    size: 4,
+    type: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
@@ -317,8 +317,8 @@ test('chopper.destroy(err) - no active stream', function (t) {
 
   const err = new Error('foo')
   const chopper = new StreamChopper({
-    maxSize: 4,
-    splittype: StreamChopper.overflow
+    size: 4,
+    type: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
@@ -347,7 +347,7 @@ test('chopper.destroy(err) - no active stream', function (t) {
   chopper.destroy(err)
 })
 
-test('should not chop if no maxSize is given', function (t) {
+test('should not chop if no size is given', function (t) {
   const bigString = new Array(10000).join('hello ')
   const totalWrites = 1000
   let emitted = false
@@ -370,7 +370,7 @@ test('should not chop if no maxSize is given', function (t) {
   }
 })
 
-test('should not chop if no maxDuration is given', function (t) {
+test('should not chop if no time is given', function (t) {
   setTimeout(function () {
     t.end()
   }, 100)
@@ -391,8 +391,8 @@ test('should not chop if no maxDuration is given', function (t) {
   chopper.write('test')
 })
 
-test('should chop when maxDuration timeout occurs', function (t) {
-  const chopper = new StreamChopper({maxDuration: 50})
+test('should chop when timeout occurs', function (t) {
+  const chopper = new StreamChopper({time: 50})
   chopper.on('stream', assertOnStream(t, 2))
   chopper.write('hello world 1')
   setTimeout(function () {
@@ -409,8 +409,8 @@ test('handle backpressure when current stream is full, but next() haven\'t been 
   let firstNext
 
   const chopper = new StreamChopper({
-    maxSize: 2,
-    splittype: StreamChopper.overflow
+    size: 2,
+    type: StreamChopper.overflow
   })
 
   chopper.on('stream', function (stream, next) {
@@ -495,7 +495,7 @@ test('output stream destroyed by user followed directly by chopper.write()', fun
     ['bar', 'b'],
     ['az']
   ]
-  const chopper = new StreamChopper({maxSize: 4})
+  const chopper = new StreamChopper({size: 4})
 
   chopper.on('stream', function (stream, next) {
     const emit = ++emits
