@@ -22,8 +22,7 @@ const StreamChopper = require('stream-chopper')
 const chopper = new StreamChopper({
   maxSize: 30,        // chop stream when it reaches 30 bytes
   maxDuration: 10000, // chop stream if it's been open for 10s
-  softlimit: true,    // allow size to exeed maxSize slightly
-  splitWrites: false  // don't split a written chunk over two streams
+  softlimit: true     // allow size to exeed maxSize slightly
 })
 
 chopper.on('stream', function (stream, next) {
