@@ -22,10 +22,12 @@ function StreamChopper (opts) {
   this._bytes = 0
   this._stream = null
 
+  this._locked = false
   this._starting = false
   this._ending = false
   this._draining = false
 
+  this._onunlock = noop
   this._next = noop
   this._oneos = oneos
   this._ondrain = ondrain
@@ -64,7 +66,10 @@ StreamChopper.prototype.chop = function (cb) {
 }
 
 StreamChopper.prototype._startStream = function (cb) {
-  this._starting = true
+  if (this._locked) {
+    this._onunlock = cb
+    return
+  }
 
   this._bytes = 0
   this._stream = new PassThrough()
@@ -73,20 +78,29 @@ StreamChopper.prototype._startStream = function (cb) {
     .on('finish', this._oneos)
     .on('drain', this._ondrain)
 
-  this.emit('stream', this._stream, () => {
-    // TODO: What if this._stream have been set to null in the meantime?
-    this._starting = false
+  this._locked = true
+  this._starting = true
+  this.emit('stream', this._stream, err => {
+    this._locked = false
+    if (err) return this.destroy(err)
 
-    if (this._maxDuration !== -1) {
-      this._timer = setTimeout(() => {
-        this._timer = null
-        this.chop()
-      }, this._maxDuration)
-      this._timer.unref()
+    const cb = this._onunlock
+    if (cb) {
+      this._onunlock = null
+      cb()
     }
-
-    if (cb) cb()
   })
+  this._starting = false
+
+  if (this._maxDuration !== -1) {
+    this._timer = setTimeout(() => {
+      this._timer = null
+      this.chop()
+    }, this._maxDuration)
+    this._timer.unref()
+  }
+
+  process.nextTick(cb)
 }
 
 StreamChopper.prototype._endStream = function (cb) {
