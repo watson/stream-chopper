@@ -82,6 +82,59 @@ test('chopper.chop()', function (t) {
   chopper.end()
 })
 
+test('chopper.destroy()', function (t) {
+  t.plan(2)
+
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'hello')
+    })
+    stream.on('error', function () {
+      t.fail('should not emit error')
+    })
+    stream.on('end', function () {
+      t.ok(true)
+    })
+    next()
+  })
+
+  chopper.on('close', function () {
+    t.end()
+  })
+
+  chopper.write('hello')
+  chopper.destroy()
+})
+
+test('chopper.destroy(err)', function (t) {
+  t.plan(3)
+
+  const chopper = new StreamChopper()
+  const err = new Error('foo')
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'hello')
+    })
+    stream.on('error', function (_err) {
+      t.equal(_err, err)
+    })
+    stream.on('end', function () {
+      t.ok(true)
+    })
+    next()
+  })
+
+  chopper.on('close', function () {
+    t.end()
+  })
+
+  chopper.write('hello')
+  chopper.destroy(err)
+})
+
 test('should not chop if no maxSize is given', function (t) {
   const bigString = new Array(10000).join('hello ')
   const totalWrites = 1000
