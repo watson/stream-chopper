@@ -1,6 +1,7 @@
 'use strict'
 
 const test = require('tape')
+const PassThrough = require('readable-stream').PassThrough
 const StreamChopper = require('./')
 
 const types = [
@@ -343,6 +344,56 @@ test('chopper.destroy(err) - no active stream', function (t) {
 
   chopper.write('hello') // force chop to make sure there's no active stream
   chopper.destroy(err)
+})
+
+test('allow output stream to be destroyed without write errors, when destination stream is destoryed', function (t) {
+  t.plan(4)
+
+  let emits = 0
+  let dest
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const expected = chunks.shift()
+
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), expected)
+    })
+
+    stream.on('end', function () {
+      next()
+      if (emit === 2) {
+        t.equal(emits, emit)
+        t.end()
+      }
+    })
+
+    if (emit === 1) {
+      dest = new PassThrough()
+      // `prefinish` seem to be the only event that's emitted early
+      // enough, that even if chopper.write() is called synchronously
+      // just after dest.destroy(), that a `write after end` error
+      // doesn't occur. Not the `error`, `close` or any other event is
+      // emitted in time
+      dest.on('prefinish', function () {
+        t.ok(true, 'should emit prefinish')
+        stream.destroy()
+      })
+      dest.on('error', function (err) {
+        t.error(err)
+      })
+      stream.pipe(dest)
+    } else if (emit > 2) {
+      t.fail('unexpected number of emits: ' + emit)
+      next()
+    }
+  })
+
+  chopper.write('hello')
+  dest.destroy()
+  chopper.end('world') // write immediately after dest.destroy to see if we can trick it into throwing an error
 })
 
 test('should not chop if no size is given', function (t) {
