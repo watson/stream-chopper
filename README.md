@@ -2,10 +2,29 @@
 
 Chop a single stream of data into a series of readable streams.
 
+Stream Chopper is useful in situations where you have a stream of data
+you want to chop up into smaller pieces, either based on time or size.
+Each piece will be emitted as a readable stream (called output streams).
+
 [![npm](https://img.shields.io/npm/v/stream-chopper.svg)](https://www.npmjs.com/package/stream-chopper)
 [![build status](https://travis-ci.org/watson/stream-chopper.svg?branch=master)](https://travis-ci.org/watson/stream-chopper)
 [![codecov](https://img.shields.io/codecov/c/github/watson/stream-chopper.svg)](https://codecov.io/gh/watson/stream-chopper)
 [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat)](https://github.com/feross/standard)
+
+## Control how data is split
+
+Sometimes it's important to ensure that a chunk written to the input
+stream isn't split up and devided over two output streams. Stream
+Chopper allows you to specify the chopping algorithm (via the `type`
+option) used when a chunk is too large to fit into the current output
+stream.
+
+By default a chunk too large to fit in the current output stream is
+split between it and the next. Alternatively you can decide to either
+allow the chunk to "overflow" the size limit, in which case it will be
+written to the current output stream, or to "underflow" the size limit,
+in which case the current output stream will be ended and the chunk
+written to the next output stream.
 
 ## Installation
 
