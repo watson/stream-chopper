@@ -15,8 +15,8 @@ Each piece will be emitted as a readable stream (called output streams).
 
 Sometimes it's important to ensure that a chunk written to the input
 stream isn't split up and devided over two output streams. Stream
-Chopper allows you to specify the chopping algorithm (via the `type`
-option) used when a chunk is too large to fit into the current output
+Chopper allows you to specify the chopping algorithm used (via the
+`type` option) when a chunk is too large to fit into the current output
 stream.
 
 By default a chunk too large to fit in the current output stream is
