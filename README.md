@@ -2,14 +2,18 @@
 
 Chop a single stream of data into a series of readable streams.
 
-Stream Chopper is useful in situations where you have a stream of data
-you want to chop up into smaller pieces, either based on time or size.
-Each piece will be emitted as a readable stream (called output streams).
-
 [![npm](https://img.shields.io/npm/v/stream-chopper.svg)](https://www.npmjs.com/package/stream-chopper)
 [![build status](https://travis-ci.org/watson/stream-chopper.svg?branch=master)](https://travis-ci.org/watson/stream-chopper)
 [![codecov](https://img.shields.io/codecov/c/github/watson/stream-chopper.svg)](https://codecov.io/gh/watson/stream-chopper)
 [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat)](https://github.com/feross/standard)
+
+Stream Chopper is useful in situations where you have a stream of data
+you want to chop up into smaller pieces, either based on time or size.
+Each piece will be emitted as a readable stream (called output streams).
+
+Possible use-cases include log rotation, splitting up large data sets,
+or chopping up a live stream of data into finite chunks that can then be
+stored.
 
 ## Control how data is split
 
