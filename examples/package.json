@@ -1,0 +1,16 @@
+{
+  "name": "examples",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "ndjson": "^1.5.0",
+    "pump": "^3.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Thomas Watson <w@tson.dk> (https://twitter.com/wa7son)",
+  "license": "MIT"
+}
