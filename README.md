@@ -52,7 +52,7 @@ const chopper = new StreamChopper({
 chopper.on('stream', function (stream, next) {
   console.log('>> Got a new stream! <<')
   stream.pipe(process.stdout)
-  next() // call next when you're ready to receive a new stream
+  stream.on('end', next) // call next when you're ready to receive a new stream
 })
 
 chopper.write('This write contains more than 30 bytes\n')
