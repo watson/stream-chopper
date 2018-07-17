@@ -100,7 +100,10 @@ StreamChopper.prototype._startStream = function (cb) {
 
 StreamChopper.prototype._endStream = function (cb) {
   if (this._destroyed) return
-  if (this._stream === null) return process.nextTick(cb)
+  if (this._stream === null) {
+    if (cb) process.nextTick(cb)
+    return
+  }
 
   const stream = this._stream
 
@@ -110,7 +113,7 @@ StreamChopper.prototype._endStream = function (cb) {
   // if stream hasn't yet ended, make sure to end it properly
   if (!stream._writableState.ending && !stream._writableState.finished) {
     stream.end(cb)
-  } else {
+  } else if (cb) {
     process.nextTick(cb)
   }
 }
