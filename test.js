@@ -167,89 +167,6 @@ test('1st write with remainder and type:underflow', function (t) {
   chopper.end()
 })
 
-test('chopper.chop(callback)', function (t) {
-  t.plan(8)
-
-  let emits = 0
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
-
-  chopper.on('stream', function (stream, next) {
-    const emit = ++emits
-    stream.on('data', function (chunk) {
-      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
-      t.equal(chunk.toString(), chunks.shift())
-    })
-    stream.on('end', function () {
-      t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
-      next()
-      if (emit === 2) t.end()
-    })
-  })
-
-  chopper.write('hello')
-  chopper.chop(function () {
-    chopper.write('world')
-    chopper.end()
-  })
-})
-
-test('chopper.chop()', function (t) {
-  t.plan(8)
-
-  let emits = 0
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
-
-  chopper.on('stream', function (stream, next) {
-    const emit = ++emits
-    stream.on('data', function (chunk) {
-      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
-      t.equal(chunk.toString(), chunks.shift())
-    })
-    stream.on('end', function () {
-      t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
-      next()
-      if (emit === 2) t.end()
-    })
-  })
-
-  chopper.write('hello')
-  chopper.chop()
-  chopper.write('world')
-  chopper.end()
-})
-
-test('chopper.chop() - twice', function (t) {
-  t.plan(8)
-
-  let emits = 0
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
-
-  chopper.on('stream', function (stream, next) {
-    const emit = ++emits
-    stream.on('data', function (chunk) {
-      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
-      t.equal(chunk.toString(), chunks.shift())
-    })
-    stream.on('end', function () {
-      t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
-      next()
-      if (emit === 2) t.end()
-    })
-  })
-
-  chopper.write('hello')
-  chopper.chop()
-  chopper.chop()
-  chopper.write('world')
-  chopper.end()
-})
-
 test('if next() is not called, next stream should not be emitted', function (t) {
   let emitted = false
   const chopper = new StreamChopper({
@@ -427,6 +344,124 @@ test('chopper.destroy(err) - no active stream', function (t) {
 
   chopper.write('hello') // force chop to make sure there's no active stream
   chopper.destroy(err)
+})
+
+test('chopper.chop(callback)', function (t) {
+  t.plan(8)
+
+  let emits = 0
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    stream.on('data', function (chunk) {
+      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
+      t.equal(chunk.toString(), chunks.shift())
+    })
+    stream.on('end', function () {
+      t.equal(emit, emits, 'should end current stream before emitting the next')
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      if (emit === 2) t.end()
+    })
+  })
+
+  chopper.write('hello')
+  chopper.chop(function () {
+    chopper.write('world')
+    chopper.end()
+  })
+})
+
+test('chopper.chop()', function (t) {
+  t.plan(8)
+
+  let emits = 0
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    stream.on('data', function (chunk) {
+      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
+      t.equal(chunk.toString(), chunks.shift())
+    })
+    stream.on('end', function () {
+      t.equal(emit, emits, 'should end current stream before emitting the next')
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      if (emit === 2) t.end()
+    })
+  })
+
+  chopper.write('hello')
+  chopper.chop()
+  chopper.write('world')
+  chopper.end()
+})
+
+test('chopper.chop() - twice', function (t) {
+  t.plan(8)
+
+  let emits = 0
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    stream.on('data', function (chunk) {
+      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
+      t.equal(chunk.toString(), chunks.shift())
+    })
+    stream.on('end', function () {
+      t.equal(emit, emits, 'should end current stream before emitting the next')
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      if (emit === 2) t.end()
+    })
+  })
+
+  chopper.write('hello')
+  chopper.chop()
+  chopper.chop()
+  chopper.write('world')
+  chopper.end()
+})
+
+test('chopper.chop() - destroyed stream', function (t) {
+  const chopper = new StreamChopper()
+  let emits = 0
+  chopper.on('stream', function (stream, next) {
+    t.equal(++emits, 1, 'should only get one stream')
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'hello')
+    })
+    stream.on('end', next)
+  })
+  chopper.write('hello')
+  chopper.destroy()
+  chopper.chop()
+  chopper.end('world')
+  t.end()
+})
+
+test('chopper.chop(callback) - destroyed stream', function (t) {
+  const chopper = new StreamChopper()
+  let emits = 0
+  chopper.on('stream', function (stream, next) {
+    t.equal(++emits, 1, 'should only get one stream')
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'hello')
+    })
+    stream.on('end', next)
+  })
+  chopper.write('hello')
+  chopper.destroy()
+  chopper.chop(function () {
+    chopper.end('world')
+    t.end()
+  })
 })
 
 test('allow output stream to be destroyed without write errors, when destination stream is destoryed', function (t) {
