@@ -203,7 +203,7 @@ StreamChopper.prototype._destroy = function (err, cb) {
       this.emit('close')
       cb()
     })
-    stream.destroy() // TODO: Should I listen for `error` even though I'm not passing in an error to destroy()?
+    stream.destroy()
   } else {
     this.emit('close')
     cb()
