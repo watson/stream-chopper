@@ -113,6 +113,16 @@ The listener function is called with two arguments:
   output stream. If called with an error, the `chopper` stream is
   destroyed
 
+### `chopper.chop([callback])`
+
+Manually chop the stream. Forces the current output stream to end even
+if its `size` limit or `time` timeout hasn't been reached yet.
+
+Arguments:
+
+- `callback` - An optional callback which will be called once the output
+  stream have ended
+
 ## License
 
 [MIT](https://github.com/watson/stream-chopper/blob/master/LICENSE)

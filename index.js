@@ -57,6 +57,14 @@ function StreamChopper (opts) {
   }
 }
 
+StreamChopper.prototype.chop = function (cb) {
+  if (this._destroyed) {
+    if (cb) process.nextTick(cb)
+    return
+  }
+  this._endStream(cb)
+}
+
 StreamChopper.prototype._startStream = function (cb) {
   if (this._destroyed) return
   if (this._locked) {
