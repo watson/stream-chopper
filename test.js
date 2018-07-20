@@ -401,7 +401,7 @@ test('chopper.chop()', function (t) {
   chopper.end()
 })
 
-test('chopper.chop() - twice', function (t) {
+test('chopper.chop() - twice with no write in between', function (t) {
   t.plan(8)
 
   let emits = 0
@@ -427,6 +427,36 @@ test('chopper.chop() - twice', function (t) {
   chopper.chop()
   chopper.write('world')
   chopper.end()
+})
+
+test('chopper.chop() - twice with write in between', function (t) {
+  t.plan(8)
+
+  let emits = 0
+  const chunks = ['hello', 'world']
+  const chopper = new StreamChopper()
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    stream.on('data', function (chunk) {
+      t.equal(emit, emits, 'should finish streaming current stream before emitting the next')
+      t.equal(chunk.toString(), chunks.shift())
+    })
+    stream.on('end', function () {
+      t.equal(emit, emits, 'should end current stream before emitting the next')
+      t.ok(true, `stream ${emit} ended`)
+      next()
+      if (emit === 2) {
+        t.end()
+        chopper.destroy()
+      }
+    })
+  })
+
+  chopper.write('hello')
+  chopper.chop()
+  chopper.write('world')
+  chopper.chop()
 })
 
 test('chopper.chop() - destroyed stream', function (t) {

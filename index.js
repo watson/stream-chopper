@@ -60,9 +60,15 @@ function StreamChopper (opts) {
 StreamChopper.prototype.chop = function (cb) {
   if (this._destroyed) {
     if (cb) process.nextTick(cb)
-    return
+  } else if (this._onunlock === null) {
+    this._endStream(cb)
+  } else {
+    const write = this._onunlock
+    this._onunlock = () => {
+      write()
+      this._endStream(cb)
+    }
   }
-  this._endStream(cb)
 }
 
 StreamChopper.prototype._startStream = function (cb) {
