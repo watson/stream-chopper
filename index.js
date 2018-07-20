@@ -37,7 +37,7 @@ function StreamChopper (opts) {
   this._draining = false
   this._destroyed = false
 
-  this._onunlock = noop
+  this._onunlock = null
   this._next = noop
   this._oneos = oneos
   this._ondrain = ondrain
