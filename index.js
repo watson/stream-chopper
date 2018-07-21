@@ -45,7 +45,7 @@ function StreamChopper (opts) {
   const self = this
 
   function oneos (err) {
-    if (err) self.emit('error', err) // TODO: Should it be re-emitted?
+    if (err) self.emit('error', err)
     self._removeStream()
   }
 
