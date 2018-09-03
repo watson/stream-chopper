@@ -23,9 +23,9 @@ function StreamChopper (opts) {
 
   Writable.call(this, opts)
 
-  this._size = opts.size || Infinity
-  this._time = opts.time || -1
-  this._type = types.indexOf(opts.type) === -1
+  this.size = opts.size || Infinity
+  this.time = opts.time || -1
+  this.type = types.indexOf(opts.type) === -1
     ? StreamChopper.split
     : opts.type
 
@@ -97,11 +97,11 @@ StreamChopper.prototype._startStream = function (cb) {
     }
   })
 
-  if (this._time !== -1) {
+  if (this.time !== -1) {
     this._timer = setTimeout(() => {
       this._timer = null
       this._endStream()
-    }, this._time)
+    }, this.time)
     this._timer.unref()
   }
 
@@ -163,17 +163,17 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
 
   this._bytes += chunk.length
 
-  const overflow = this._bytes - this._size
+  const overflow = this._bytes - this.size
 
-  if (overflow > 0 && this._type !== StreamChopper.overflow) {
-    if (this._type === StreamChopper.split) {
+  if (overflow > 0 && this.type !== StreamChopper.overflow) {
+    if (this.type === StreamChopper.split) {
       const remaining = chunk.length - overflow
       this._stream.write(chunk.slice(0, remaining))
       chunk = chunk.slice(remaining)
     }
 
-    if (this._type === StreamChopper.underflow && this._bytes - chunk.length === 0) {
-      cb(new Error(`Cannot write ${chunk.length} byte chunk - only ${this._size} available`))
+    if (this.type === StreamChopper.underflow && this._bytes - chunk.length === 0) {
+      cb(new Error(`Cannot write ${chunk.length} byte chunk - only ${this.size} available`))
       return
     }
 

@@ -113,6 +113,40 @@ The listener function is called with two arguments:
   output stream. If called with an error, the `chopper` stream is
   destroyed
 
+### `chopper.size`
+
+The maximum number of bytes that can be written to the `chopper` stream
+before a new output stream is emitted.
+
+Use this property to override it with a new value. The new value will
+take effect immediately on the current stream.
+
+### `chopper.time`
+
+The maximum number of milliseconds that an output stream can be in use
+before a new output stream is emitted.
+
+Use this property to override it with a new value. The new value will
+take effect when the next stream is initialized.
+
+Set to `-1` for no time limit.
+
+### `chopper.type`
+
+The algoritm used to determine how a written chunk that cannot fit into
+the current output stream should be handled. The following values are
+possible:
+
+- `StreamChopper.split` - Fit as much data from the chunk as possible
+  into the current stream and write the remainder to the next stream
+- `StreamChopper.overflow` - Allow the entire chunk to be written to
+  the current stream. After writing, the stream is ended
+- `StreamChopper.underflow` - End the current output stream and write
+  the entire chunk to the next stream
+
+Use this property to override it with a new value. The new value will
+take effect immediately on the current stream.
+
 ### `chopper.chop([callback])`
 
 Manually chop the stream. Forces the current output stream to end even

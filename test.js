@@ -12,9 +12,9 @@ const types = [
 
 test('default values', function (t) {
   const chopper = new StreamChopper()
-  t.equal(chopper._size, Infinity)
-  t.equal(chopper._time, -1)
-  t.equal(chopper._type, StreamChopper.split)
+  t.equal(chopper.size, Infinity)
+  t.equal(chopper.time, -1)
+  t.equal(chopper.type, StreamChopper.split)
   t.equal(chopper._locked, false)
   t.equal(chopper._draining, false)
   t.equal(chopper._destroyed, false)
@@ -716,6 +716,129 @@ test('output stream destroyed by user followed directly by chopper.write()', fun
     })
   })
 
+  chopper.write('foo')
+})
+
+test('change size midflight', function (t) {
+  t.plan(12)
+
+  let emits = 0
+  const streams = [
+    ['foo'],
+    ['bar'],
+    ['foobar']
+  ]
+
+  const chopper = new StreamChopper({size: 3})
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const chunks = streams.shift()
+    t.ok(chunks, `stream ${emit} should be expected`)
+
+    stream.on('data', function (chunk) {
+      const expected = chunks.shift()
+      t.ok(expected, `chunk event should be expected on stream ${emit}`)
+      t.equal(chunk.toString(), expected, `should get '${expected}'`)
+      if (emit === 2) {
+        chopper.size = 6
+        chopper.write('foobar')
+        chopper.end()
+      }
+    })
+    stream.on('end', function () {
+      t.pass(`stream ${emit} ended`)
+      next()
+      if (emit === 3) t.end()
+    })
+  })
+
+  chopper.write('foobar')
+})
+
+test('change type midflight', function (t) {
+  t.plan(12)
+
+  let emits = 0
+  const streams = [
+    ['foo'],
+    ['bar'],
+    ['foobar']
+  ]
+
+  const chopper = new StreamChopper({size: 3})
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const chunks = streams.shift()
+    t.ok(chunks, `stream ${emit} should be expected`)
+
+    stream.on('data', function (chunk) {
+      const expected = chunks.shift()
+      t.ok(expected, `chunk event should be expected on stream ${emit}`)
+      t.equal(chunk.toString(), expected, `should get '${expected}'`)
+      if (emit === 2) {
+        chopper.type = StreamChopper.overflow
+        chopper.write('foobar')
+        chopper.end()
+      }
+    })
+    stream.on('end', function () {
+      t.pass(`stream ${emit} ended`)
+      next()
+      if (emit === 3) t.end()
+    })
+  })
+
+  chopper.write('foobar')
+})
+
+test('change time midflight', function (t) {
+  t.plan(8)
+
+  let start
+  let emits = 0
+  const streams = [
+    ['foo'],
+    ['bar']
+  ]
+
+  const chopper = new StreamChopper({time: 200})
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const chunks = streams.shift()
+    t.ok(chunks, `stream ${emit} should be expected`)
+
+    stream.on('data', function (chunk) {
+      const expected = chunks.shift()
+      t.ok(expected, `chunk event should be expected on stream ${emit}`)
+      t.equal(chunk.toString(), expected, `should get '${expected}'`)
+    })
+    stream.on('end', function () {
+      const diff = Date.now() - start
+      if (emit === 1) {
+        t.ok(diff >= 200 && diff <= 400, `should end the stream witin a window of 200-400ms (was: ${diff})`)
+        chopper.time = 500
+        start = Date.now()
+        chopper.write('bar')
+        next()
+      } else {
+        t.ok(diff >= 500 && diff <= 700, `should end the stream witin a window of 500-700ms (was: ${diff})`)
+        clearTimeout(timer)
+        next()
+        chopper.destroy()
+        t.end()
+      }
+    })
+  })
+
+  // we need a timer on the event loop so the test doesn't exit too soon
+  const timer = setTimeout(function () {
+    t.fail('took too long')
+  }, 1101)
+
+  start = Date.now()
   chopper.write('foo')
 })
 
