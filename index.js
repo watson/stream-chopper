@@ -111,7 +111,7 @@ StreamChopper.prototype.resetTimer = function (time) {
     clearTimeout(this._timer)
     this._timer = null
   }
-  if (this.time !== -1) {
+  if (this.time !== -1 && !this._destroyed && this._stream) {
     this._timer = setTimeout(() => {
       this._timer = null
       this._endStream()
