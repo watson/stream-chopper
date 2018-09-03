@@ -201,7 +201,7 @@ test('call next() with error', function (t) {
   chopper.write('hello')
 })
 
-test('copper.destroy() - synchronously during write', function (t) {
+test('chopper.destroy() - synchronously during write', function (t) {
   const chopper = new StreamChopper()
   chopper.on('stream', function (stream, next) {
     // this event is emitted synchronously during the chopper.write call below
@@ -494,7 +494,7 @@ test('chopper.chop(callback) - destroyed stream', function (t) {
   })
 })
 
-test('allow output stream to be destroyed without write errors, when destination stream is destoryed', function (t) {
+test('allow output stream to be destroyed without write errors, when destination stream is destroyed', function (t) {
   t.plan(4)
 
   let emits = 0
