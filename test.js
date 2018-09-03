@@ -223,13 +223,13 @@ test('chopper.destroy() - active stream', function (t) {
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('error', function (err) {
       t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
-      t.ok(true)
+      t.pass('stream should end')
       next()
     })
   })
@@ -254,13 +254,13 @@ test('chopper.destroy(err) - active stream', function (t) {
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('error', function (err) {
       t.error(err)
     })
     stream.on('end', function () {
-      t.ok(true)
+      t.pass('stream should end')
       next()
     })
   })
@@ -287,20 +287,20 @@ test('chopper.destroy() - no active stream', function (t) {
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('error', function (err) {
       t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
-      t.ok(true)
+      t.pass('stream should end')
       next()
       t.end()
     })
   })
 
   chopper.on('close', function () {
-    t.ok(true)
+    t.pass('chopper should close')
   })
 
   chopper.on('error', function (err) {
@@ -322,20 +322,20 @@ test('chopper.destroy(err) - no active stream', function (t) {
 
   chopper.on('stream', function (stream, next) {
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('error', function (err) {
       t.error(err, 'error on the stream')
     })
     stream.on('end', function () {
-      t.ok(true)
+      t.pass('stream should end')
       next()
       t.end()
     })
   })
 
   chopper.on('close', function () {
-    t.ok(true)
+    t.pass('chopper should close')
   })
 
   chopper.on('error', function (_err) {
@@ -361,7 +361,7 @@ test('chopper.chop(callback)', function (t) {
     })
     stream.on('end', function () {
       t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 2) t.end()
     })
@@ -389,7 +389,7 @@ test('chopper.chop()', function (t) {
     })
     stream.on('end', function () {
       t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 2) t.end()
     })
@@ -416,7 +416,7 @@ test('chopper.chop() - twice with no write in between', function (t) {
     })
     stream.on('end', function () {
       t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 2) t.end()
     })
@@ -444,7 +444,7 @@ test('chopper.chop() - twice with write in between', function (t) {
     })
     stream.on('end', function () {
       t.equal(emit, emits, 'should end current stream before emitting the next')
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 2) {
         t.end()
@@ -465,7 +465,7 @@ test('chopper.chop() - destroyed stream', function (t) {
   chopper.on('stream', function (stream, next) {
     t.equal(++emits, 1, 'should only get one stream')
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('end', next)
   })
@@ -482,7 +482,7 @@ test('chopper.chop(callback) - destroyed stream', function (t) {
   chopper.on('stream', function (stream, next) {
     t.equal(++emits, 1, 'should only get one stream')
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
     })
     stream.on('end', next)
   })
@@ -526,7 +526,7 @@ test('allow output stream to be destroyed without write errors, when destination
       // doesn't occur. Not the `error`, `close` or any other event is
       // emitted in time
       dest.on('prefinish', function () {
-        t.ok(true, 'should emit prefinish')
+        t.pass('should emit prefinish')
         stream.destroy()
       })
       dest.on('error', function (err) {
@@ -645,11 +645,11 @@ test('output stream destroyed by user', function (t) {
     const emit = ++emits
 
     stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello')
+      t.equal(chunk.toString(), 'hello', 'stream should get data')
       stream.destroy() // force output stream to end unexpectedly
     })
     stream.on('end', function () {
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       t.end()
     })
@@ -673,7 +673,7 @@ test('output stream destroyed by user followed by chopper.write() when stream em
       if (emit === 1) stream.destroy() // force output stream to end unexpectedly
     })
     stream.on('end', function () {
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 1) chopper.end('world') // start writing before stream have emitted finish
       else t.end()
@@ -710,7 +710,7 @@ test('output stream destroyed by user followed directly by chopper.write()', fun
       }
     })
     stream.on('end', function () {
-      t.ok(true, `stream ${emit} ended`)
+      t.pass(`stream ${emit} ended`)
       next()
       if (emit === 3) t.end()
     })
