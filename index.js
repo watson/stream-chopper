@@ -97,6 +97,20 @@ StreamChopper.prototype._startStream = function (cb) {
     }
   })
 
+  this.resetTimer()
+
+  // To ensure that the write that caused this stream to be started
+  // is perfromed in the same tick, call the callback synchronously.
+  // Note that we can't do this in case the chopper is locked.
+  cb()
+}
+
+StreamChopper.prototype.resetTimer = function (time) {
+  if (arguments.length > 0) this.time = time
+  if (this._timer) {
+    clearTimeout(this._timer)
+    this._timer = null
+  }
   if (this.time !== -1) {
     this._timer = setTimeout(() => {
       this._timer = null
@@ -104,11 +118,6 @@ StreamChopper.prototype._startStream = function (cb) {
     }, this.time)
     this._timer.unref()
   }
-
-  // To ensure that the write that caused this stream to be started
-  // is perfromed in the same tick, call the callback synchronously.
-  // Note that we can't do this in case the chopper is locked.
-  cb()
 }
 
 StreamChopper.prototype._endStream = function (cb) {

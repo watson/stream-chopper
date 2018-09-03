@@ -842,6 +842,100 @@ test('change time midflight', function (t) {
   chopper.write('foo')
 })
 
+test('#chopper.resetTimer()', function (t) {
+  t.plan(2)
+
+  let start
+  const chopper = new StreamChopper({ time: 200 })
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'foo', 'stream should get data')
+    })
+    stream.on('end', function () {
+      const diff = Date.now() - start
+      t.ok(diff >= 300 && diff <= 500, `should end the stream witin a window of 300-500ms (was: ${diff})`)
+      clearTimeout(timer)
+      next()
+      chopper.destroy()
+      t.end()
+    })
+  })
+
+  // we need a timer on the event loop so the test doesn't exit too soon
+  const timer = setTimeout(function () {
+    t.fail('took too long')
+  }, 501)
+
+  start = Date.now()
+  chopper.write('foo')
+
+  setTimeout(function () {
+    chopper.resetTimer()
+  }, 100)
+})
+
+test('#chopper.resetTimer(time)', function (t) {
+  t.plan(2)
+
+  let start
+  const chopper = new StreamChopper({ time: 200 })
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'foo', 'stream should get data')
+    })
+    stream.on('end', function () {
+      const diff = Date.now() - start
+      t.ok(diff >= 500 && diff <= 700, `should end the stream witin a window of 500-700ms (was: ${diff})`)
+      clearTimeout(timer)
+      next()
+      chopper.destroy()
+      t.end()
+    })
+  })
+
+  // we need a timer on the event loop so the test doesn't exit too soon
+  const timer = setTimeout(function () {
+    t.fail('took too long')
+  }, 701)
+
+  start = Date.now()
+  chopper.write('foo')
+
+  setTimeout(function () {
+    chopper.resetTimer(400)
+  }, 100)
+})
+
+test('#chopper.resetTimer(-1)', function (t) {
+  t.plan(2)
+
+  let ended = false
+  const chopper = new StreamChopper({ time: 100 })
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'foo', 'stream should get data')
+    })
+    stream.on('end', function () {
+      ended = true
+    })
+  })
+
+  setTimeout(function () {
+    t.equal(ended, false, 'should successfully have disabled the timer before the stream ended')
+    chopper.destroy()
+    t.end()
+  }, 200)
+
+  chopper.write('foo')
+
+  setTimeout(function () {
+    chopper.resetTimer(-1)
+  }, 50)
+})
+
 function assertOnStream (t, expectedEmits) {
   let emits = 0
   return function (stream, next) {
