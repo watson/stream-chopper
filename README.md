@@ -127,7 +127,8 @@ The maximum number of milliseconds that an output stream can be in use
 before a new output stream is emitted.
 
 Use this property to override it with a new value. The new value will
-take effect when the next stream is initialized.
+take effect when the next stream is initialized. To change the current
+timer, see [`chopper.resetTimer()`](#chopperresettimertime).
 
 Set to `-1` for no time limit.
 
@@ -156,6 +157,23 @@ Arguments:
 
 - `callback` - An optional callback which will be called once the output
   stream have ended
+
+### `chopper.resetTimer([time])`
+
+Use this function to reset the current timer (configured via the `time`
+config option). Calling this function will force the current timer to
+start over.
+
+If the optional `time` argument is provided, this value is used as the
+new time. This is equivilent to calling:
+
+```js
+chopper.time = time
+chopper.resetTimer()
+```
+
+If the function is called with `time` set to `-1`, the current timer is
+cancelled and the time limit is disabled for all future streams.
 
 ## License
 
