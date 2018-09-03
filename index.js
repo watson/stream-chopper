@@ -1,7 +1,7 @@
 'use strict'
 
 const util = require('util')
-const {Writable, PassThrough} = require('readable-stream')
+const { Writable, PassThrough } = require('readable-stream')
 
 module.exports = StreamChopper
 

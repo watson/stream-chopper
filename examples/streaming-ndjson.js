@@ -46,7 +46,7 @@ server.listen(function () {
     const count = ++streamCount
     console.log('[chopper stream#%d] new stream', count)
 
-    const opts = {method: 'POST', port}
+    const opts = { method: 'POST', port }
 
     // open a request to the HTTP server
     const req = http.request(opts, function (res) {
@@ -75,7 +75,7 @@ server.listen(function () {
 
   function write () {
     // prepare dummy json object
-    const obj = {time: new Date()}
+    const obj = { time: new Date() }
 
     // write it to the serialize stream
     if (serialize.write(obj) === false) {

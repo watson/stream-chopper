@@ -118,7 +118,7 @@ test('1st write with remainder and type:split', function (t) {
     ['ld']
   ]
 
-  const chopper = new StreamChopper({size: 5, type: StreamChopper.split})
+  const chopper = new StreamChopper({ size: 5, type: StreamChopper.split })
 
   chopper.on('stream', function (stream, next) {
     const chunks = streams.shift()
@@ -143,7 +143,7 @@ test('1st write with remainder and type:split', function (t) {
 })
 
 test('1st write with remainder and type:overflow', function (t) {
-  const chopper = new StreamChopper({size: 5, type: StreamChopper.overflow})
+  const chopper = new StreamChopper({ size: 5, type: StreamChopper.overflow })
   chopper.on('stream', assertOnStream(t, 2))
   chopper.write('hello world 1')
   chopper.write('hello world 2')
@@ -151,7 +151,7 @@ test('1st write with remainder and type:overflow', function (t) {
 })
 
 test('1st write with remainder and type:underflow', function (t) {
-  const chopper = new StreamChopper({size: 4, type: StreamChopper.underflow})
+  const chopper = new StreamChopper({ size: 4, type: StreamChopper.underflow })
 
   chopper.on('stream', function (stream, next) {
     stream.resume()
@@ -589,7 +589,7 @@ test('should not chop if no time is given', function (t) {
 })
 
 test('should chop when timeout occurs', function (t) {
-  const chopper = new StreamChopper({time: 50})
+  const chopper = new StreamChopper({ time: 50 })
   chopper.on('stream', assertOnStream(t, 2))
   chopper.write('hello world 1')
   setTimeout(function () {
@@ -692,7 +692,7 @@ test('output stream destroyed by user followed directly by chopper.write()', fun
     ['bar', 'b'],
     ['az']
   ]
-  const chopper = new StreamChopper({size: 4})
+  const chopper = new StreamChopper({ size: 4 })
 
   chopper.on('stream', function (stream, next) {
     const emit = ++emits
@@ -729,7 +729,7 @@ test('change size midflight', function (t) {
     ['foobar']
   ]
 
-  const chopper = new StreamChopper({size: 3})
+  const chopper = new StreamChopper({ size: 3 })
 
   chopper.on('stream', function (stream, next) {
     const emit = ++emits
@@ -766,7 +766,7 @@ test('change type midflight', function (t) {
     ['foobar']
   ]
 
-  const chopper = new StreamChopper({size: 3})
+  const chopper = new StreamChopper({ size: 3 })
 
   chopper.on('stream', function (stream, next) {
     const emit = ++emits
@@ -803,7 +803,7 @@ test('change time midflight', function (t) {
     ['bar']
   ]
 
-  const chopper = new StreamChopper({time: 200})
+  const chopper = new StreamChopper({ time: 200 })
 
   chopper.on('stream', function (stream, next) {
     const emit = ++emits
