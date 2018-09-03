@@ -875,7 +875,24 @@ test('#chopper.resetTimer()', function (t) {
   }, 100)
 })
 
-test('#chopper.resetTimer(time)', function (t) {
+test('#chopper.resetTimer() - without an active stream', function (t) {
+  const chopper = new StreamChopper({ time: 200 })
+
+  chopper.on('stream', function (stream, next) {
+    t.fail('should never emit a stream')
+  })
+
+  setTimeout(function () {
+    chopper.destroy()
+    t.end()
+  }, 400)
+
+  chopper.resetTimer()
+
+  t.notOk(chopper._timer)
+})
+
+test('#chopper.resetTimer(time) - with current time set to 200', function (t) {
   t.plan(2)
 
   let start
@@ -906,6 +923,36 @@ test('#chopper.resetTimer(time)', function (t) {
   setTimeout(function () {
     chopper.resetTimer(400)
   }, 100)
+})
+
+test('#chopper.resetTimer(time) - with current time set to -1', function (t) {
+  t.plan(2)
+
+  let start
+  const chopper = new StreamChopper({ time: -1 })
+
+  chopper.on('stream', function (stream, next) {
+    stream.on('data', function (chunk) {
+      t.equal(chunk.toString(), 'foo', 'stream should get data')
+    })
+    stream.on('end', function () {
+      const diff = Date.now() - start
+      t.ok(diff >= 400 && diff <= 600, `should end the stream witin a window of 400-600ms (was: ${diff})`)
+      clearTimeout(timer)
+      next()
+      chopper.destroy()
+      t.end()
+    })
+  })
+
+  // we need a timer on the event loop so the test doesn't exit too soon
+  const timer = setTimeout(function () {
+    t.fail('took too long')
+  }, 601)
+
+  start = Date.now()
+  chopper.write('foo')
+  chopper.resetTimer(400)
 })
 
 test('#chopper.resetTimer(-1)', function (t) {
