@@ -1,6 +1,8 @@
 'use strict'
 
 const test = require('tape')
+const zlib = require('zlib')
+const crypto = require('crypto')
 const PassThrough = require('readable-stream').PassThrough
 const StreamChopper = require('./')
 
@@ -15,9 +17,25 @@ test('default values', function (t) {
   t.equal(chopper.size, Infinity)
   t.equal(chopper.time, -1)
   t.equal(chopper.type, StreamChopper.split)
+  t.equal(chopper._compressor, undefined)
   t.equal(chopper._locked, false)
   t.equal(chopper._draining, false)
   t.equal(chopper._destroyed, false)
+  t.end()
+})
+
+test('throw on invalid config', function (t) {
+  t.throws(function () {
+    new StreamChopper({ // eslint-disable-line no-new
+      type: StreamChopper.split,
+      compressor: function () {}
+    })
+  })
+  t.throws(function () {
+    new StreamChopper({ // eslint-disable-line no-new
+      compressor: function () {}
+    })
+  })
   t.end()
 })
 
@@ -40,6 +58,68 @@ types.forEach(function (type) {
     chopper.write('hello world 3')
     chopper.end()
   })
+})
+
+test('very fast writes should not exceed size limit too much', function (t) {
+  const writes = [
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex'),
+    crypto.randomBytes(5 * 1024).toString('hex')
+  ]
+  let emits = 0
+
+  const ZLIB_BUFFER_SIZE = 16 * 1024
+
+  // 33k: two times the zlib buffer + a little extra
+  const size = 2 * 16 * 1024 + 1024
+
+  // The internals of zlib works in mysterious ways. The overshoot will in many
+  // cases be more than the size of the zlib buffer, but so far we haven't seen
+  // it be more than twice that. So we use 2x just to be safe.
+  const maxOutputSize = size + 2 * ZLIB_BUFFER_SIZE
+
+  const chopper = new StreamChopper({
+    size,
+    type: StreamChopper.overflow,
+    compressor: function () {
+      return zlib.createGzip({
+        level: zlib.constants.Z_NO_COMPRESSION
+      })
+    }
+  })
+
+  chopper.on('stream', function (stream, next) {
+    const emit = ++emits
+    const chunks = []
+
+    t.ok(stream instanceof zlib.Gzip, 'emitted stream should be of type Gzip')
+
+    stream.on('data', chunks.push.bind(chunks))
+    stream.on('end', function () {
+      const data = Buffer.concat(chunks)
+
+      if (emit === 1) {
+        t.ok(data.length >= size, `output should be within bounds (${data.length} >= ${size})`)
+      }
+      t.ok(data.length <= maxOutputSize, `output should be within bounds (${data.length} <= ${maxOutputSize})`)
+
+      next()
+      if (emit === 2) t.end()
+    })
+  })
+
+  write()
+
+  function write (index) {
+    if (!index) index = 0
+    if (index === writes.length) return chopper.end()
+    chopper.write(writes[index])
+    setImmediate(write.bind(null, ++index))
+  }
 })
 
 test('2nd write with remainder and type:split', function (t) {

@@ -28,6 +28,11 @@ function StreamChopper (opts) {
   this.type = types.indexOf(opts.type) === -1
     ? StreamChopper.split
     : opts.type
+  this._compressor = opts.compressor
+
+  if (this._compressor && this.type === StreamChopper.split) {
+    throw new Error('stream-chopper cannot split a compressed stream')
+  }
 
   this._bytes = 0
   this._stream = null
@@ -78,7 +83,20 @@ StreamChopper.prototype._startStream = function (cb) {
   }
 
   this._bytes = 0
-  this._stream = new PassThrough()
+
+  if (this._compressor) {
+    this._stream = this._compressor().once('resume', () => {
+      // `resume` will be emitted before the first `data` event
+      this._stream.on('data', chunk => {
+        this._bytes += chunk.length
+        this._maybeEndCompressedStream()
+      })
+    })
+  } else {
+    this._stream = new PassThrough()
+  }
+
+  this._stream
     .on('close', this._oneos)
     .on('error', this._oneos)
     .on('finish', this._oneos)
@@ -103,6 +121,20 @@ StreamChopper.prototype._startStream = function (cb) {
   // is perfromed in the same tick, call the callback synchronously.
   // Note that we can't do this in case the chopper is locked.
   cb()
+}
+
+StreamChopper.prototype._maybeEndCompressedStream = function () {
+  if (this._stream === null) return
+
+  // in case of backpresure on the compressor stream, count how many bytes are
+  // buffered
+  const bufferedSize = this._stream.writableBuffer.reduce((total, b) => {
+    return total + b.chunk.length
+  }, 0)
+
+  const overflow = (this._bytes + bufferedSize) - this.size
+
+  if (overflow >= 0) this._endStream()
 }
 
 StreamChopper.prototype.resetTimer = function (time) {
@@ -142,14 +174,17 @@ StreamChopper.prototype._endStream = function (cb) {
 
 StreamChopper.prototype._removeStream = function () {
   if (this._stream === null) return
-  if (this._timer !== null) clearTimeout(this._timer)
-  if (this._stream._writableState.needDrain) this._ondrain()
-  this._stream.removeListener('error', this._oneos)
-  this._stream.removeListener('close', this._oneos)
-  this._stream.removeListener('finish', this._oneos)
-  this._stream.removeListener('end', this._oneos)
-  this._stream.removeListener('drain', this._ondrain)
+
+  const stream = this._stream
   this._stream = null
+
+  if (this._timer !== null) clearTimeout(this._timer)
+  if (stream._writableState.needDrain) this._ondrain()
+  stream.removeListener('error', this._oneos)
+  stream.removeListener('close', this._oneos)
+  stream.removeListener('finish', this._oneos)
+  stream.removeListener('end', this._oneos)
+  stream.removeListener('drain', this._ondrain)
 }
 
 StreamChopper.prototype._write = function (chunk, enc, cb) {
@@ -170,6 +205,17 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
     return
   }
 
+  if (this._compressor) {
+    // The size of a compressed stream is counted post-compression and
+    // so the size guard is located elsewhere. We can therefore just
+    // write to the stream without any checks.
+    this._unprotectedWrite(chunk, enc, cb)
+  } else {
+    this._protectedWrite(chunk, enc, cb)
+  }
+}
+
+StreamChopper.prototype._protectedWrite = function (chunk, enc, cb) {
   this._bytes += chunk.length
 
   const overflow = this._bytes - this.size
@@ -193,14 +239,18 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
   }
 
   if (overflow < 0) {
-    if (this._stream.write(chunk) === false) this._draining = true
-    if (this._draining === false) cb()
-    else this._next = cb
+    this._unprotectedWrite(chunk, enc, cb)
   } else {
     // if we reached the size limit, just end the stream already
     this._stream.end(chunk)
     this._endStream(cb)
   }
+}
+
+StreamChopper.prototype._unprotectedWrite = function (chunk, enc, cb) {
+  if (this._stream.write(chunk) === false) this._draining = true
+  if (this._draining === false) cb()
+  else this._next = cb
 }
 
 StreamChopper.prototype._destroy = function (err, cb) {
