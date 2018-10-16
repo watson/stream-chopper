@@ -28,10 +28,10 @@ function StreamChopper (opts) {
   this.type = types.indexOf(opts.type) === -1
     ? StreamChopper.split
     : opts.type
-  this._compressor = opts.compressor
+  this._transform = opts.transform
 
-  if (this._compressor && this.type === StreamChopper.split) {
-    throw new Error('stream-chopper cannot split a compressed stream')
+  if (this._transform && this.type === StreamChopper.split) {
+    throw new Error('stream-chopper cannot split a transform stream')
   }
 
   this._bytes = 0
@@ -84,12 +84,12 @@ StreamChopper.prototype._startStream = function (cb) {
 
   this._bytes = 0
 
-  if (this._compressor) {
-    this._stream = this._compressor().once('resume', () => {
+  if (this._transform) {
+    this._stream = this._transform().once('resume', () => {
       // `resume` will be emitted before the first `data` event
       this._stream.on('data', chunk => {
         this._bytes += chunk.length
-        this._maybeEndCompressedStream()
+        this._maybeEndTransformSteam()
       })
     })
   } else {
@@ -123,10 +123,10 @@ StreamChopper.prototype._startStream = function (cb) {
   cb()
 }
 
-StreamChopper.prototype._maybeEndCompressedStream = function () {
+StreamChopper.prototype._maybeEndTransformSteam = function () {
   if (this._stream === null) return
 
-  // in case of backpresure on the compressor stream, count how many bytes are
+  // in case of backpresure on the transform stream, count how many bytes are
   // buffered
   const bufferedSize = this._stream.writableBuffer.reduce((total, b) => {
     return total + b.chunk.length
@@ -205,10 +205,10 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
     return
   }
 
-  if (this._compressor) {
-    // The size of a compressed stream is counted post-compression and
-    // so the size guard is located elsewhere. We can therefore just
-    // write to the stream without any checks.
+  if (this._transform) {
+    // The size of a transform stream is counted post-transform and so the size
+    // guard is located elsewhere. We can therefore just write to the stream
+    // without any checks.
     this._unprotectedWrite(chunk, enc, cb)
   } else {
     this._protectedWrite(chunk, enc, cb)

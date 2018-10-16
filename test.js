@@ -17,7 +17,7 @@ test('default values', function (t) {
   t.equal(chopper.size, Infinity)
   t.equal(chopper.time, -1)
   t.equal(chopper.type, StreamChopper.split)
-  t.equal(chopper._compressor, undefined)
+  t.equal(chopper._transform, undefined)
   t.equal(chopper._locked, false)
   t.equal(chopper._draining, false)
   t.equal(chopper._destroyed, false)
@@ -28,12 +28,12 @@ test('throw on invalid config', function (t) {
   t.throws(function () {
     new StreamChopper({ // eslint-disable-line no-new
       type: StreamChopper.split,
-      compressor: function () {}
+      transform: function () {}
     })
   })
   t.throws(function () {
     new StreamChopper({ // eslint-disable-line no-new
-      compressor: function () {}
+      transform: function () {}
     })
   })
   t.end()
@@ -60,7 +60,7 @@ types.forEach(function (type) {
   })
 })
 
-test('very fast writes should not exceed size limit too much', function (t) {
+test('transform: very fast writes should not exceed size limit too much', function (t) {
   const writes = [
     crypto.randomBytes(5 * 1024).toString('hex'),
     crypto.randomBytes(5 * 1024).toString('hex'),
@@ -85,7 +85,7 @@ test('very fast writes should not exceed size limit too much', function (t) {
   const chopper = new StreamChopper({
     size,
     type: StreamChopper.overflow,
-    compressor: function () {
+    transform: function () {
       return zlib.createGzip({
         level: zlib.constants.Z_NO_COMPRESSION
       })
