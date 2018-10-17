@@ -9,6 +9,7 @@
 
 const http = require('http')
 const zlib = require('zlib')
+const crypto = require('crypto')
 const pump = require('pump')
 const ndjson = require('ndjson')
 const StreamChopper = require('stream-chopper')
@@ -40,7 +41,13 @@ server.listen(function () {
   const chopper = new StreamChopper({
     size: 512, // close request when 512 bytes data have been written,
     time: 10000, // or when it't been open for 10 seconds,
-    type: StreamChopper.overflow // but don't chop ndjson lines up
+    type: StreamChopper.overflow, // but don't chop ndjson lines up
+    transform: function () { // compress the transmitted ndjson
+      return zlib.createGzip({
+        chunkSize: 512, // use small zlib buffer for demo purposes
+        level: zlib.constants.Z_NO_COMPRESSION // make zlib buffer fill up fast for demo purposes
+      })
+    }
   })
 
   chopper.on('stream', function (stream, next) {
@@ -58,7 +65,7 @@ server.listen(function () {
 
     // compress all data written to the stream with gzip before sending it to
     // the HTTP server
-    pump(stream, zlib.createGzip(), req, function (err) {
+    pump(stream, req, function (err) {
       if (err) throw err
       console.log('[chopper stream#%d] stream ended', count)
       next()
@@ -78,7 +85,7 @@ server.listen(function () {
 
   function write () {
     // prepare dummy json object
-    const obj = { time: new Date() }
+    const obj = { time: new Date(), data: crypto.randomBytes(64).toString('hex') }
 
     // write it to the serialize stream
     if (serialize.write(obj) === false) {
@@ -92,7 +99,7 @@ server.listen(function () {
   }
 
   function next () {
-    // queue next write to happen somewhere between 250 and 500 ms
-    setTimeout(write, Math.floor(Math.random() * 250) + 250)
+    // queue next write to happen somewhere between 0 and 50 ms
+    setTimeout(write, Math.floor(Math.random() * 50))
   }
 })

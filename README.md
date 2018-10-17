@@ -97,6 +97,11 @@ config options:
     the current stream. After writing, the stream is ended
   - `StreamChopper.underflow` - End the current output stream and write
     the entire chunk to the next stream
+- `transform` - An optional function that returns a transform stream
+  used for transforming the data in some way (e.g. a zlib Gzip stream).
+  If used, the `size` option will count towards the size of the output
+  chunks. This config option cannot be used together with the
+  `StreamChopper.split` type
 
 If `type` is `StreamChopper.underflow` and the size of the chunk to be
 written is larger than `size` an error is emitted.
