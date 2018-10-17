@@ -86,6 +86,9 @@ StreamChopper.prototype._startStream = function (cb) {
 
   if (this._transform) {
     this._stream = this._transform().once('resume', () => {
+      // in case `_removeStream` have just been called
+      if (this._stream === null) return
+
       // `resume` will be emitted before the first `data` event
       this._stream.on('data', chunk => {
         this._bytes += chunk.length
