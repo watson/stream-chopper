@@ -87,7 +87,7 @@ test('transform: very fast writes should not exceed size limit too much', functi
     type: StreamChopper.overflow,
     transform: function () {
       return zlib.createGzip({
-        level: zlib.constants.Z_NO_COMPRESSION
+        level: zlib.constants ? zlib.constants.Z_NO_COMPRESSION : zlib.Z_NO_COMPRESSION
       })
     }
   })
