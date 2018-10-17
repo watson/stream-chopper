@@ -128,9 +128,7 @@ StreamChopper.prototype._maybeEndTransformSteam = function () {
 
   // in case of backpresure on the transform stream, count how many bytes are
   // buffered
-  const bufferedSize = this._stream.writableBuffer.reduce((total, b) => {
-    return total + b.chunk.length
-  }, 0)
+  const bufferedSize = getBufferedSize(this._stream)
 
   const overflow = (this._bytes + bufferedSize) - this.size
 
@@ -281,3 +279,10 @@ StreamChopper.prototype._final = function (cb) {
 }
 
 function noop () {}
+
+function getBufferedSize (stream) {
+  const buffer = stream.writableBuffer || stream._writableState.getBuffer()
+  return buffer.reduce((total, b) => {
+    return total + b.chunk.length
+  }, 0)
+}
