@@ -268,7 +268,26 @@ StreamChopper.prototype._destroy = function (err, cb) {
       this.emit('close')
       cb()
     })
-    stream.destroy()
+
+    switch (stream.constructor.name) {
+      case 'Gzip':
+      case 'Gunzip':
+      case 'Deflate':
+      case 'Inflate':
+        // In case stream is a zlib stream, these doesn't have a destroy function
+        // in Node.js 6. On top of that simply calling destroy on a zlib stream in
+        // Node.js 8+ will result in a memory leak. So until that is fixed, we need
+        // to call both close AND destroy.
+        //
+        // PR: https://github.com/nodejs/node/pull/23734
+        if (typeof stream.close === 'function') stream.close()
+        if (typeof stream.destroy === 'function') stream.destroy()
+        break
+      default:
+        // For other streams we assume calling just one of them is enough.
+        if (typeof stream.destroy === 'function') stream.destroy()
+        else if (typeof stream.close === 'function') stream.close()
+    }
   } else {
     this.emit('close')
     cb()
