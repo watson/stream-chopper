@@ -286,7 +286,7 @@ StreamChopper.prototype._destroy = function (err, cb) {
       default:
         // For other streams we assume calling just one of them is enough.
         if (typeof stream.destroy === 'function') stream.destroy()
-        else if (typeof stream.close === 'function') stream.close()
+        else if (typeof stream.emit === 'function') stream.emit('close')
     }
   } else {
     this.emit('close')
