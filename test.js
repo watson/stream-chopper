@@ -122,6 +122,24 @@ test('transform: very fast writes should not exceed size limit too much', functi
   }
 })
 
+test('transform: shouldn\'t throw even if transform stream is set to null before first data event', function (t) {
+  const chopper = new StreamChopper({
+    type: StreamChopper.overflow,
+    transform: function () {
+      return zlib.createGzip()
+    }
+  })
+
+  chopper.on('stream', function (stream, next) {
+    stream.resume()
+  })
+
+  chopper.write('hello')
+  chopper.destroy()
+
+  t.end()
+})
+
 test('2nd write with remainder and type:split', function (t) {
   const streams = [
     ['hello world', 'h'],
