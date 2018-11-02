@@ -28,12 +28,12 @@ test('throw on invalid config', function (t) {
   t.throws(function () {
     new StreamChopper({ // eslint-disable-line no-new
       type: StreamChopper.split,
-      transform: function () {}
+      transform () {}
     })
   })
   t.throws(function () {
     new StreamChopper({ // eslint-disable-line no-new
-      transform: function () {}
+      transform () {}
     })
   })
   t.end()
@@ -85,7 +85,7 @@ test('transform: very fast writes should not exceed size limit too much', functi
   const chopper = new StreamChopper({
     size,
     type: StreamChopper.overflow,
-    transform: function () {
+    transform () {
       return zlib.createGzip({
         level: zlib.constants ? zlib.constants.Z_NO_COMPRESSION : zlib.Z_NO_COMPRESSION
       })
@@ -125,7 +125,7 @@ test('transform: very fast writes should not exceed size limit too much', functi
 test('transform: shouldn\'t throw even if transform stream is set to null before first data event', function (t) {
   const chopper = new StreamChopper({
     type: StreamChopper.overflow,
-    transform: function () {
+    transform () {
       return zlib.createGzip()
     }
   })
