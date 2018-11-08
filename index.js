@@ -106,7 +106,7 @@ StreamChopper.prototype._startStream = function (cb) {
     .on('close', this._oneos)
     .on('error', this._oneos)
     .on('finish', this._oneos)
-    .on('end', this._oneos) // in case stream.destroy() is called by the user
+    .on('end', this._oneos)
     .on('drain', this._ondrain)
 
   this._locked = true
