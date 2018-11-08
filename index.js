@@ -48,11 +48,7 @@ function StreamChopper (opts) {
 
   const self = this
 
-  function oneos (err) {
-    // If oneos is called because of a close event, some streams will give a
-    // boolean as the first argument indicating if the stream was closed
-    // because of an error
-    if (err && typeof err !== 'boolean') self.destroy(err) // TODO: This error is already emitted by the stream. Maybe we shouldn't pass it on to destroy?
+  function oneos () {
     self._removeStream()
   }
 
