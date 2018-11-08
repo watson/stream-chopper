@@ -3,7 +3,6 @@
 const test = require('tape')
 const zlib = require('zlib')
 const crypto = require('crypto')
-const PassThrough = require('readable-stream').PassThrough
 const StreamChopper = require('./')
 
 const types = [
@@ -20,7 +19,6 @@ test('default values', function (t) {
   t.equal(chopper._transform, undefined)
   t.equal(chopper._locked, false)
   t.equal(chopper._draining, false)
-  t.equal(chopper._destroyed, false)
   t.end()
 })
 
@@ -326,8 +324,8 @@ test('chopper.destroy() - active stream', function (t) {
     stream.on('error', function (err) {
       t.error(err, 'error on the stream')
     })
-    stream.on('end', function () {
-      t.pass('stream should end')
+    stream.on('close', function () {
+      t.pass('stream should close')
       next()
     })
   })
@@ -357,8 +355,8 @@ test('chopper.destroy(err) - active stream', function (t) {
     stream.on('error', function (err) {
       t.error(err)
     })
-    stream.on('end', function () {
-      t.pass('stream should end')
+    stream.on('close', function () {
+      t.pass('stream should close')
       next()
     })
   })
@@ -393,12 +391,12 @@ test('chopper.destroy() - no active stream', function (t) {
     stream.on('end', function () {
       t.pass('stream should end')
       next()
-      t.end()
     })
   })
 
   chopper.on('close', function () {
     t.pass('chopper should close')
+    t.end()
   })
 
   chopper.on('error', function (err) {
@@ -428,12 +426,12 @@ test('chopper.destroy(err) - no active stream', function (t) {
     stream.on('end', function () {
       t.pass('stream should end')
       next()
-      t.end()
     })
   })
 
   chopper.on('close', function () {
     t.pass('chopper should close')
+    t.end()
   })
 
   chopper.on('error', function (_err) {
@@ -469,6 +467,14 @@ test('chopper.chop(callback)', function (t) {
   chopper.chop(function () {
     chopper.write('world')
     chopper.end()
+  })
+})
+
+test('chopper.chop(callback) - on destroyed stream', function (t) {
+  const chopper = new StreamChopper()
+  chopper.destroy()
+  chopper.chop(function () {
+    t.end()
   })
 })
 
@@ -555,91 +561,6 @@ test('chopper.chop() - twice with write in between', function (t) {
   chopper.chop()
   chopper.write('world')
   chopper.chop()
-})
-
-test('chopper.chop() - destroyed stream', function (t) {
-  const chopper = new StreamChopper()
-  let emits = 0
-  chopper.on('stream', function (stream, next) {
-    t.equal(++emits, 1, 'should only get one stream')
-    stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello', 'stream should get data')
-    })
-    stream.on('end', next)
-  })
-  chopper.write('hello')
-  chopper.destroy()
-  chopper.chop()
-  chopper.end('world')
-  t.end()
-})
-
-test('chopper.chop(callback) - destroyed stream', function (t) {
-  const chopper = new StreamChopper()
-  let emits = 0
-  chopper.on('stream', function (stream, next) {
-    t.equal(++emits, 1, 'should only get one stream')
-    stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), 'hello', 'stream should get data')
-    })
-    stream.on('end', next)
-  })
-  chopper.write('hello')
-  chopper.destroy()
-  chopper.chop(function () {
-    chopper.end('world')
-    t.end()
-  })
-})
-
-test('allow output stream to be destroyed without write errors, when destination stream is destroyed', function (t) {
-  t.plan(4)
-
-  let emits = 0
-  let dest
-  const chunks = ['hello', 'world']
-  const chopper = new StreamChopper()
-
-  chopper.on('stream', function (stream, next) {
-    const emit = ++emits
-    const expected = chunks.shift()
-
-    stream.on('data', function (chunk) {
-      t.equal(chunk.toString(), expected)
-    })
-
-    stream.on('end', function () {
-      next()
-      if (emit === 2) {
-        t.equal(emits, emit)
-        t.end()
-      }
-    })
-
-    if (emit === 1) {
-      dest = new PassThrough()
-      // `prefinish` seem to be the only event that's emitted early
-      // enough, that even if chopper.write() is called synchronously
-      // just after dest.destroy(), that a `write after end` error
-      // doesn't occur. Not the `error`, `close` or any other event is
-      // emitted in time
-      dest.on('prefinish', function () {
-        t.pass('should emit prefinish')
-        stream.destroy()
-      })
-      dest.on('error', function (err) {
-        t.error(err)
-      })
-      stream.pipe(dest)
-    } else if (emit > 2) {
-      t.fail('unexpected number of emits: ' + emit)
-      next()
-    }
-  })
-
-  chopper.write('hello')
-  dest.destroy()
-  chopper.end('world') // write immediately after dest.destroy to see if we can trick it into throwing an error
 })
 
 test('should not chop if no size is given', function (t) {
@@ -746,8 +667,8 @@ test('output stream destroyed by user', function (t) {
       t.equal(chunk.toString(), 'hello', 'stream should get data')
       stream.destroy() // force output stream to end unexpectedly
     })
-    stream.on('end', function () {
-      t.pass(`stream ${emit} ended`)
+    stream.on('close', function () {
+      t.pass(`stream ${emit} closed`)
       next()
       t.end()
     })
@@ -770,11 +691,14 @@ test('output stream destroyed by user followed by chopper.write() when stream em
       t.equal(chunk.toString(), chunks.shift())
       if (emit === 1) stream.destroy() // force output stream to end unexpectedly
     })
-    stream.on('end', function () {
-      t.pass(`stream ${emit} ended`)
+    stream.on('close', function () {
+      t.equal(emit, 1, 'stream 1 should close')
       next()
-      if (emit === 1) chopper.end('world') // start writing before stream have emitted finish
-      else t.end()
+      chopper.end('world') // start writing before stream have emitted finish
+    })
+    stream.on('end', function () {
+      t.equal(emit, 2, 'stream 2 should end')
+      t.end()
     })
   })
 
@@ -807,8 +731,12 @@ test('output stream destroyed by user followed directly by chopper.write()', fun
         chopper.end('baz') // start writing while stream is locked
       }
     })
+    stream.on('close', function () {
+      t.equal(emit, 1, 'stream 1 should close')
+      next()
+    })
     stream.on('end', function () {
-      t.pass(`stream ${emit} ended`)
+      t.ok(emit > 1, `stream 1 shouldn't end (was stream ${emit}`)
       next()
       if (emit === 3) t.end()
     })

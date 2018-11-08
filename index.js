@@ -1,6 +1,7 @@
 'use strict'
 
 const util = require('util')
+const zlib = require('zlib')
 const { Writable, PassThrough } = require('readable-stream')
 
 module.exports = StreamChopper
@@ -39,7 +40,6 @@ function StreamChopper (opts) {
 
   this._locked = false
   this._draining = false
-  this._destroyed = false
 
   this._onunlock = null
   this._next = noop
@@ -49,7 +49,10 @@ function StreamChopper (opts) {
   const self = this
 
   function oneos (err) {
-    if (err) self.emit('error', err)
+    // If oneos is called because of a close event, some streams will give a
+    // boolean as the first argument indicating if the stream was closed
+    // because of an error
+    if (err && typeof err !== 'boolean') self.destroy(err) // TODO: This error is already emitted by the stream. Maybe we shouldn't pass it on to destroy?
     self._removeStream()
   }
 
@@ -62,7 +65,7 @@ function StreamChopper (opts) {
 }
 
 StreamChopper.prototype.chop = function (cb) {
-  if (this._destroyed) {
+  if (this.destroyed) {
     if (cb) process.nextTick(cb)
   } else if (this._onunlock === null) {
     this._endStream(cb)
@@ -76,7 +79,7 @@ StreamChopper.prototype.chop = function (cb) {
 }
 
 StreamChopper.prototype._startStream = function (cb) {
-  if (this._destroyed) return
+  if (this.destroyed) return
   if (this._locked) {
     this._onunlock = cb
     return
@@ -144,7 +147,7 @@ StreamChopper.prototype.resetTimer = function (time) {
     clearTimeout(this._timer)
     this._timer = null
   }
-  if (this.time !== -1 && !this._destroyed && this._stream) {
+  if (this.time !== -1 && !this.destroyed && this._stream) {
     this._timer = setTimeout(() => {
       this._timer = null
       this._endStream()
@@ -154,7 +157,7 @@ StreamChopper.prototype.resetTimer = function (time) {
 }
 
 StreamChopper.prototype._endStream = function (cb) {
-  if (this._destroyed) return
+  if (this.destroyed) return
   if (this._stream === null) {
     if (cb) process.nextTick(cb)
     return
@@ -189,7 +192,6 @@ StreamChopper.prototype._removeStream = function () {
 }
 
 StreamChopper.prototype._write = function (chunk, enc, cb) {
-  if (this._destroyed) return
   if (this._stream === null) {
     this._startStream(() => {
       this._write(chunk, enc, cb)
@@ -197,9 +199,10 @@ StreamChopper.prototype._write = function (chunk, enc, cb) {
     return
   }
 
-  const destroyed = this._stream._writableState.destroyed || this._stream._readableState.destroyed
-
-  if (destroyed) {
+  // This guard is to protect against writes that happen in the same tick after
+  // a user destroys the stream. If it wasn't here, we'd accidentally write to
+  // the stream and it would emit an error
+  if (isDestroyed(this._stream)) {
     this._startStream(() => {
       this._write(chunk, enc, cb)
     })
@@ -255,47 +258,18 @@ StreamChopper.prototype._unprotectedWrite = function (chunk, enc, cb) {
 }
 
 StreamChopper.prototype._destroy = function (err, cb) {
-  if (this._destroyed) return
-  this._destroyed = true
-
-  if (err) this.emit('error', err)
-
   const stream = this._stream
   this._removeStream()
 
   if (stream !== null) {
-    stream.once('close', () => {
-      this.emit('close')
-      cb()
-    })
-
-    switch (stream.constructor.name) {
-      case 'Gzip':
-      case 'Gunzip':
-      case 'Deflate':
-      case 'Inflate':
-        // In case stream is a zlib stream, these doesn't have a destroy function
-        // in Node.js 6. On top of that simply calling destroy on a zlib stream in
-        // Node.js 8+ will result in a memory leak. So until that is fixed, we need
-        // to call both close AND destroy.
-        //
-        // PR: https://github.com/nodejs/node/pull/23734
-        if (typeof stream.close === 'function') stream.close()
-        if (typeof stream.destroy === 'function') stream.destroy()
-        break
-      default:
-        // For other streams we assume calling just one of them is enough.
-        if (typeof stream.destroy === 'function') stream.destroy()
-        else if (typeof stream.emit === 'function') stream.emit('close')
-    }
+    if (stream.destroyed === true) return cb(err)
+    destroyStream(stream, cb.bind(null, err))
   } else {
-    this.emit('close')
-    cb()
+    cb(err)
   }
 }
 
 StreamChopper.prototype._final = function (cb) {
-  if (this._destroyed) return
   if (this._stream === null) return cb()
   this._stream.end(cb)
 }
@@ -307,4 +281,55 @@ function getBufferedSize (stream) {
   return buffer.reduce((total, b) => {
     return total + b.chunk.length
   }, 0)
+}
+
+// TODO: Make this work with all Node.js 6 streams. A Node.js 6 stream doesn't
+// have a destroyed flag because it doesn't have a .destroy() function. If the
+// stream is a zlib stream it will however have a _handle, which will be null
+// if the stream has been closed. We can check for that, but that coveres only
+// zlib streams
+function isDestroyed (stream) {
+  return stream.destroyed === true || stream._handle === null
+}
+
+function destroyStream (stream, cb) {
+  const emitClose = stream._writableState.emitClose
+  if (emitClose && cb) stream.once('close', cb)
+
+  if (stream instanceof zlib.Gzip ||
+      stream instanceof zlib.Gunzip ||
+      stream instanceof zlib.Deflate ||
+      stream instanceof zlib.DeflateRaw ||
+      stream instanceof zlib.Inflate ||
+      stream instanceof zlib.InflateRaw ||
+      stream instanceof zlib.Unzip) {
+    // Zlib streams doesn't have a destroy function in Node.js 6. On top of
+    // that simply calling destroy on a zlib stream in Node.js 8+ will result
+    // in a memory leak as the handle isn't closed (an operation normally done
+    // by calling close). So until that is fixed, we need to manually close the
+    // handle after destroying the stream.
+    //
+    // PR: https://github.com/nodejs/node/pull/23734
+    if (typeof stream.destroy === 'function') {
+      // Manually close the stream instead of calling `close()` as that would
+      // have emitted 'close' again when calling `destroy()`
+      if (stream._handle && typeof stream._handle.close === 'function') {
+        stream._handle.close()
+        stream._handle = null
+      }
+
+      stream.destroy()
+    } else if (typeof stream.close === 'function') {
+      stream.close()
+    }
+  } else {
+    // For other streams we assume calling destroy is enough
+    if (typeof stream.destroy === 'function') stream.destroy()
+    // Or if there's no destroy (which Node.js 6 will not have on regular
+    // streams), emit `close` as that should trigger almost the same effect
+    else if (typeof stream.emit === 'function') stream.emit('close')
+  }
+
+  // In case this stream doesn't emit 'close', just call the callback manually
+  if (!emitClose && cb) cb()
 }
