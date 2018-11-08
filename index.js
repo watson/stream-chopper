@@ -263,7 +263,9 @@ StreamChopper.prototype._destroy = function (err, cb) {
 
   if (stream !== null) {
     if (stream.destroyed === true) return cb(err)
-    destroyStream(stream, cb.bind(null, err))
+    destroyStream(stream, function () {
+      cb(err)
+    })
   } else {
     cb(err)
   }
@@ -294,7 +296,7 @@ function isDestroyed (stream) {
 
 function destroyStream (stream, cb) {
   const emitClose = stream._writableState.emitClose
-  if (emitClose && cb) stream.once('close', cb)
+  if (emitClose) stream.once('close', cb)
 
   if (stream instanceof zlib.Gzip ||
       stream instanceof zlib.Gunzip ||
@@ -331,5 +333,5 @@ function destroyStream (stream, cb) {
   }
 
   // In case this stream doesn't emit 'close', just call the callback manually
-  if (!emitClose && cb) cb()
+  if (!emitClose) cb()
 }
