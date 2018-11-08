@@ -4,7 +4,7 @@
   "description": "Chop a single stream of data into a series of readable streams",
   "main": "index.js",
   "dependencies": {
-    "readable-stream": "^2.3.6"
+    "readable-stream": "^3.0.6"
   },
   "devDependencies": {
     "codecov": "^3.0.4",
